@@ -126,6 +126,14 @@ p{font-size:9.2pt; line-height:1.62; color:#33363C}
   text-transform:uppercase; color:var(--muted);
 }
 .foot .pg{font-weight:700; color:var(--ink)}
+/* closing page — the footer is part of the dark block, so the ink runs
+   to the bottom edge instead of stopping at a white band */
+.foot--dark{background:var(--ink); color:rgba(255,255,255,.45)}
+.foot--dark .pg{color:#fff}
+/* industry page two — the footer sits over the mosaic, on a soft scrim */
+.foot--over{position:relative; z-index:2; color:rgba(255,255,255,.8);
+  background:linear-gradient(to top, rgba(0,0,0,.62), rgba(0,0,0,0)); padding-top:12mm}
+.foot--over .pg{color:#fff}
 
 /* ---------- image slots ----------
    Photography is referenced from HEPF's own CDN. If an image can't load
@@ -277,7 +285,11 @@ p{font-size:9.2pt; line-height:1.62; color:#33363C}
    bleeds off both side edges. The container is height-capped and
    clipped, which is what lets the bottom row run off the page without
    inflating the page height.                                        */
-.mosaic{position:relative; margin:4mm -16mm 0 -16mm; overflow:hidden}
+/* Anchored to the foot of the sheet and clipped there, so the bottom row
+   is cut by the paper edge rather than by a line part-way down. Absolute,
+   so it adds nothing to the page's flow height. `top` is set per document
+   after render, just below the copy block. */
+.mosaic{position:absolute; left:0; right:0; bottom:0; overflow:hidden}
 .mrow{display:flex; gap:2.5mm; margin-bottom:2.5mm}
 .mrow:nth-child(1){margin-left:-12mm}
 .mrow:nth-child(2){margin-left:0}
@@ -773,7 +785,7 @@ thead th,
     </div>
   </div>
 
-  <div class="foot" style="padding-top:6mm"><span>HEPF AG &nbsp;·&nbsp; Sihlbruggstrasse 140, 6340 Baar, Switzerland</span><span class="pg">06</span></div>
+  <div class="foot foot--dark" style="padding-top:6mm"><span>HEPF AG &nbsp;·&nbsp; Sihlbruggstrasse 140, 6340 Baar, Switzerland</span><span class="pg">06</span></div>
 </section>
 
 
@@ -2263,7 +2275,9 @@ function pageIdea(d){
        + i.picker.map(function(r){ return '<div class="row' + (r[2] ? ' on' : '') + '"><span class="k">' + r[0] + '</span><span class="v">' + r[1] + '</span></div>'; }).join('')
        + '</div></div>')
    + (d.cat === 'industry' ? '<div class="grow"></div>' : '')
-   + foot(d, i.eyebrow, 2) + '</section>';
+   + (d.cat === 'industry'
+       ? '<div class="foot foot--over"><span>' + esc(d.name) + ' &nbsp;·&nbsp; ' + esc(i.eyebrow) + '</span><span class="pg">02</span></div>'
+       : foot(d, i.eyebrow, 2)) + '</section>';
 }
 
 /* Three rows of nine square photographs, offset so they run off both
@@ -2279,7 +2293,7 @@ function mosaicBlock(d){
     }
     rows += '</div>';
   }
-  return '<div class="mosaic" style="height:' + (d.mosaicH || 162) + 'mm">' + rows + '</div>';
+  return '<div class="mosaic">' + rows + '</div>';
 }
 
 function pageLines(d){
@@ -2442,7 +2456,7 @@ function pageClose(d){
    + '<div class="ctarow"><p>Book a free consultation — open, non-binding and tailored to your project. We&rsquo;ll come back with a configuration, a timeline and a price.</p>'
    + '<div class="contact"><svg class="logo logo--sm" viewBox="0 0 534 111" role="img" aria-label="HEPF AG" style="margin-left:auto; margin-bottom:4mm"><use href="#hepf-logo"/></svg>'
    + '<strong>hepf.ch</strong><br>info@hepf.ch<br>+41 44 501 07 60</div></div></div>'
-   + '<div class="foot" style="padding-top:6mm"><span>HEPF AG &nbsp;·&nbsp; Sihlbruggstrasse 140, 6340 Baar, Switzerland</span><span class="pg">06</span></div>'
+   + '<div class="foot foot--dark" style="padding-top:6mm"><span>HEPF AG &nbsp;·&nbsp; Sihlbruggstrasse 140, 6340 Baar, Switzerland</span><span class="pg">06</span></div>'
    + '</section>';
 }
 
@@ -2547,6 +2561,11 @@ var FRAME_NAMES = {
         f.appendChild(lab);
         f.insertAdjacentHTML('beforeend', html);
         surface.appendChild(f);
+      });
+      /* seat each mosaic directly beneath the copy above it */
+      Array.prototype.forEach.call(surface.querySelectorAll('.genframe .mosaic'), function(mo){
+        var tc = mo.parentNode.querySelector('.threecol');
+        if(tc) mo.style.top = (tc.offsetTop + tc.offsetHeight + 15) + 'px';
       });
     } else if(!isBasic && d){
       for(var i=0;i<5;i++){
