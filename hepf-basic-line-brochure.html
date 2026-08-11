@@ -134,7 +134,7 @@ p{font-size:9.2pt; line-height:1.62; color:#33363C}
 .img > i{display:none; font-style:normal}
 .img.noimg > i{display:block}
 .swatches{display:grid; grid-template-columns:repeat(6,1fr); gap:2mm; margin-top:4mm}
-.swatches .img{height:12mm; padding:2mm; font-size:6pt; letter-spacing:.08em}
+.swatches .img{aspect-ratio:1/1; height:auto; padding:2mm; font-size:6pt; letter-spacing:.08em}
 /* ---------- image slots ---------- */
 .img{
   background:var(--stone);
@@ -144,7 +144,11 @@ p{font-size:9.2pt; line-height:1.62; color:#33363C}
   font-size:7pt; letter-spacing:.14em; text-transform:uppercase;
   color:#A9A49B; font-weight:700; line-height:1.7;
 }
-.img img{width:100%;height:100%;object-fit:cover;display:block}
+.img{position:relative}
+.img img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block}
+/* product renders sit on a plain ground — contain them so nothing is cropped */
+.lines .img img{object-fit:contain; inset:4mm}
+.swatches .img img{object-fit:contain; inset:2.5mm}
 
 /* ---------- awaiting-data placeholder ----------
    Shows the slot and its unit so the layout reads complete, without
@@ -234,8 +238,8 @@ p{font-size:9.2pt; line-height:1.62; color:#33363C}
 .picker .row .v{font-size:8.5pt; line-height:1.55; color:#4A4D53; align-self:center}
 
 /* ============ PAGE 3 — UNIT KIT ============ */
-.units{display:grid; grid-template-columns:repeat(3,1fr); gap:5mm 7mm; margin-top:4mm}
-.unit .img{aspect-ratio:1/1; height:auto; margin-bottom:3.5mm}
+.units{display:grid; grid-template-columns:repeat(3,1fr); gap:11mm 6mm; margin-top:8mm}
+.unit .img{aspect-ratio:1/1; height:auto; margin-bottom:4.5mm}
 .unit .lbl{display:flex; align-items:baseline; gap:3mm; margin-bottom:2.5mm}
 .unit .lbl .idx{font-size:7.5pt; font-weight:700; color:var(--accent); letter-spacing:.1em}
 .unit h3{font-size:10pt}
@@ -255,10 +259,10 @@ p{font-size:9.2pt; line-height:1.62; color:#33363C}
 /* ---------- industry: applicable lines ---------- */
 .lines{display:grid; grid-template-columns:repeat(4,1fr); gap:0; margin-top:6mm;
        border-top:var(--hair) solid var(--line); border-bottom:var(--hair) solid var(--line)}
-.lines > div{padding:5mm 5mm; border-right:var(--hair) solid var(--line)}
+.lines > div{padding:6mm 5mm; border-right:var(--hair) solid var(--line)}
 .lines > div:first-child{padding-left:0}
 .lines > div:last-child{border-right:0; padding-right:0}
-.lines .img{height:35mm; margin-bottom:3.5mm}
+.lines .img{height:46mm; margin-bottom:4mm}
 .lines h3{font-size:9.6pt; margin-bottom:2mm}
 .lines p{font-size:7.9pt; line-height:1.55}
 .lines .fig{display:block; margin-top:3mm; padding-top:2.5mm; border-top:var(--hair) solid var(--line);
@@ -279,7 +283,7 @@ p{font-size:9.2pt; line-height:1.62; color:#33363C}
 /* ============ PAGE 4 — SPECIFICATION ============ */
 .spec{display:grid; grid-template-columns:repeat(3,1fr); gap:0; margin-top:6mm;
       border-top:var(--hair) solid var(--line)}
-.spec > div{padding:3mm 6mm; border-bottom:var(--hair) solid var(--line);
+.spec > div{padding:4.5mm 6mm; border-bottom:var(--hair) solid var(--line);
             border-right:var(--hair) solid var(--line)}
 .spec > div:nth-child(3n+1){padding-left:0}
 .spec > div:nth-child(3n){border-right:0; padding-right:0}
@@ -309,6 +313,8 @@ p{font-size:9.2pt; line-height:1.62; color:#33363C}
    feature list beside it, so both columns bottom out on the same line. */
 .sysgrid .img{min-height:44mm; align-self:stretch}
 .feat{display:flex; gap:4mm; padding:3.6mm 0; border-bottom:var(--hair) solid var(--line)}
+/* the Proof page has room the System page does not */
+.roomy .feat{padding:6.5mm 0}
 .feat:first-of-type{border-top:var(--hair) solid var(--line)}
 .feat .ic{font-size:8pt; font-weight:700; color:var(--accent); min-width:7mm; padding-top:.6mm}
 .feat h3{font-size:9.2pt; margin-bottom:1.4mm}
@@ -583,13 +589,7 @@ thead th,
 
   <div class="grow"></div>
 
-  <div class="combine">
-    <div>
-      <h3>Combine them however the site demands</h3>
-      <p>Units join side by side to open up larger floor plates, or stack up to three storeys where the footprint is tight. Corridors, staircases and terraces connect the whole into a single building.</p>
-    </div>
-    <div class="img" style="height:20mm; background:var(--hero); border-color:#3A3E45; color:#5E626B"><img referrerpolicy="no-referrer" src="https://cdn.prod.website-files.com/69e786a0f9ddf0a73ab1b2a2/6a2c0dff876ffab99ef21ec2_containex-transpack-flutkatastrophe-asien-2-rz.webp" alt="" onerror="this.parentNode.classList.add('noimg');this.remove()"><i>Units combining side-by-side and stacked</i></div>
-  </div>
+  
 
   <div class="foot"><span>Basic Line &nbsp;·&nbsp; The Range</span><span class="pg">03</span></div>
 </section>
@@ -623,10 +623,7 @@ thead th,
       <div><span class="ct">09</span><h3>Specialist</h3><p>Medical beds and cabinets, acoustic wall panels and fire equipment for regulated environments.</p></div>
     </div>
 
-    <div class="outgrow">
-      <h3>And if the brief outgrows it</h3>
-      <p>Basic Line is one of ten HEPF product lines. Where a project calls for Swiss compliance, higher thermal performance or a genuinely bespoke plan, we move you onto the line that fits rather than stretching the one you started with. Same team, same contact, same handover.</p>
-    </div>
+    
 
     <div class="partners">
       <span class="eyebrow muted">Fit-out partners</span>
@@ -2288,8 +2285,7 @@ function pageLines(d){
    + '<p class="lede" style="margin-top:4mm; max-width:152mm">' + d.linesLede + '</p>'
    + '<div class="lines">' + d.lines.map(function(l){
        return '<div>' + slotImg(l[4], l[1])
-            + '<h3>' + l[1] + '</h3><p>' + l[2] + '</p>'
-            + '<span class="fig">' + l[3] + '</span></div>'; }).join('') + '</div>'
+            + '<h3>' + l[1] + '</h3><p>' + l[2] + '</p></div>'; }).join('') + '</div>'
    + '<div class="datahead" style="margin-top:8mm"><div><span class="eyebrow muted">Finishes</span>'
    + '<h3 style="font-size:13pt; margin-top:2.5mm">Specified to the sector</h3></div>'
    + '<span class="small">Cladding, roof, energy, flooring and fit-out</span></div>'
@@ -2297,8 +2293,6 @@ function pageLines(d){
        return '<div class="img"><img referrerpolicy="no-referrer" src="' + B + w[0] + '" alt="" onerror="this.parentNode.classList.add(\'noimg\');this.remove()"><i>' + w[1] + '</i></div>'; }).join('') + '</div>'
    + '<div style="margin-top:8mm"><span class="eyebrow muted">Where it fits</span>'
    + '<div class="fitstrip" style="margin-top:4mm">' + d.idea.chips.map(function(c){ return '<span class="chip">' + c + '</span>'; }).join('') + '</div></div>'
-   + '<div class="outgrow"><h3>One team, whichever line you land on</h3>'
-   + '<p>Where a project outgrows the shortlist above, we move you onto the line that fits rather than stretching the one you started with. Planning, permitting, foundations, installation and fit-out stay with the same team throughout.</p></div>'
    + '<div class="partners"><span class="eyebrow muted">Fit-out partners</span><div class="row">' + partnerRow() + '</div></div>'
    + '</div><div class="grow"></div>' + foot(d, 'Applicable Lines', 4) + '</section>';
 }
@@ -2318,9 +2312,7 @@ function pageRange(d){
    + '<p class="lede" style="margin-top:3mm; max-width:152mm">' + r.lede + '</p>'
    + '<div class="units">' + tiles + '</div>'
    + '</div><div class="grow"></div>'
-   + '<div class="combine"><div><h3>' + r.strip.h + '</h3><p>' + r.strip.p + '</p></div>'
-   + slotImg(r.strip.img, 'Supporting image', ' style="height:20mm; background:var(--hero); border-color:#3A3E45; color:#5E626B"')
-   + '</div>' + foot(d, r.eyebrow, 3) + '</section>';
+   + foot(d, r.eyebrow, 3) + '</section>';
 }
 
 var SPEC_CATS = [
@@ -2366,8 +2358,6 @@ function pageSpec(d){
        return '<div><span class="k">' + t[0] + '</span><span class="v">' + t[1] + '</span></div>'; }).join('') + '</div>'
    + '<div class="spec">' + SPEC_CATS.map(function(c, n){
        return '<div><span class="ct">0' + (n + 1) + '</span><h3>' + c[0] + '</h3><p>' + c[1] + '</p></div>'; }).join('') + '</div>'
-   + '<div class="outgrow"><h3>One team, whichever line you land on</h3>'
-   + '<p>' + esc(d.name) + ' is one of ten HEPF product lines. Where a project outgrows it — Swiss compliance, higher thermal performance, a genuinely bespoke plan — we move you onto the line that fits rather than stretching the one you started with. Same team, same contact, same handover.</p></div>'
    + '<div class="partners"><span class="eyebrow muted">Fit-out partners</span><div class="row">' + partnerRow() + '</div></div>'
    + '<p class="small" style="margin-top:3mm">Option availability varies by product line &mdash; <span class="ph">full matrix to follow</span></p>'
    + '</div><div class="grow"></div>' + foot(d, s.eyebrow, 4) + '</section>';
@@ -2400,7 +2390,7 @@ function pageProof(d){
   return '<section class="page"><div class="pad">'
    + '<span class="eyebrow">' + esc(p.eyebrow) + '</span>'
    + '<h2 style="margin-top:5mm; max-width:135mm">' + p.h + '</h2>'
-   + '<div class="sysgrid">' + slotImg(p.img, d.name + ' — project image') + '<div>'
+   + '<div class="sysgrid">' + slotImg(p.img, d.name + ' — project image') + '<div class="roomy">'
    + p.reqs.map(function(f, n){ return '<div class="feat"><span class="ic">' + L[n] + '</span><div><h3>' + f.t + '</h3><p>' + f.p + '</p></div></div>'; }).join('')
    + '</div></div>'
    + '<div class="datahead"><div><span class="eyebrow muted">Delivered</span>'
