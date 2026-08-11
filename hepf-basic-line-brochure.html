@@ -146,9 +146,13 @@ p{font-size:9.2pt; line-height:1.62; color:#33363C}
 }
 .img{position:relative}
 .img img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block}
-/* product renders sit on a plain ground — contain them so nothing is cropped */
-.lines .img img{object-fit:contain; inset:4mm}
-.swatches .img img{object-fit:contain; inset:2.5mm}
+/* Product renders sit on a plain ground — contain them so nothing is cropped.
+   The breathing room is padding, not inset: setting inset AND width:100%
+   over-constrains the box and shunts the image off the right and bottom. */
+.lines .img img,
+.swatches .img img{object-fit:contain; object-position:center center}
+.lines .img img{padding:4mm}
+.swatches .img img{padding:2.5mm}
 
 /* ---------- awaiting-data placeholder ----------
    Shows the slot and its unit so the layout reads complete, without
