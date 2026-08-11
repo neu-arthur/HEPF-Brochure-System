@@ -1,0 +1,19 @@
+# HEPF brochure — Netlify configuration
+#
+# On every push Netlify runs build.mjs, which strips the Brochure Studio
+# panel out of the master file and writes index.html. You never hand-export.
+
+[build]
+  command   = "node build.mjs"
+  publish   = "."
+  functions = "netlify/functions"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options        = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy        = "no-referrer"
