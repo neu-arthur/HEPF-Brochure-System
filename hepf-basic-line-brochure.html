@@ -251,6 +251,31 @@ p{font-size:9.2pt; line-height:1.62; color:#33363C}
 .combine h3{color:#fff; font-size:10.5pt; margin-bottom:2.5mm}
 .combine p{color:rgba(255,255,255,.66); font-size:8.2pt; line-height:1.55}
 
+
+/* ---------- industry: applicable lines ---------- */
+.lines{display:grid; grid-template-columns:repeat(4,1fr); gap:0; margin-top:6mm;
+       border-top:var(--hair) solid var(--line); border-bottom:var(--hair) solid var(--line)}
+.lines > div{padding:5mm 5mm; border-right:var(--hair) solid var(--line)}
+.lines > div:first-child{padding-left:0}
+.lines > div:last-child{border-right:0; padding-right:0}
+.lines .img{height:35mm; margin-bottom:3.5mm}
+.lines h3{font-size:9.6pt; margin-bottom:2mm}
+.lines p{font-size:7.9pt; line-height:1.55}
+.lines .fig{display:block; margin-top:3mm; padding-top:2.5mm; border-top:var(--hair) solid var(--line);
+            font-size:7pt; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); font-weight:700}
+
+/* ---------- industry: page-two photo mosaic ----------
+   Rows are wider than the sheet and offset alternately, so the grid
+   bleeds off both side edges. The container is height-capped and
+   clipped, which is what lets the bottom row run off the page without
+   inflating the page height.                                        */
+.mosaic{position:relative; margin:4mm -16mm 0 -16mm; overflow:hidden}
+.mrow{display:flex; gap:2.5mm; margin-bottom:2.5mm}
+.mrow:nth-child(1){margin-left:-12mm}
+.mrow:nth-child(2){margin-left:0}
+.mrow:nth-child(3){margin-left:-8mm}
+.mosaic .img{width:72mm; height:72mm; flex:none; padding:3mm; font-size:6pt}
+
 /* ============ PAGE 4 — SPECIFICATION ============ */
 .spec{display:grid; grid-template-columns:repeat(3,1fr); gap:0; margin-top:6mm;
       border-top:var(--hair) solid var(--line)}
@@ -1653,6 +1678,7 @@ thead th,
    ============================================================ */
 var A = 'https://cdn.prod.website-files.com/69e786a0f9ddf0a73ab1b2a2/';
 var B = 'https://cdn.prod.website-files.com/69e74fa4ad666c2eddf15aeb/';
+var B2 = 'https://cdn.prod.website-files.com/69e786a0f9ddf0a73ab1b2a2/';
 
 var SIZES_CL = [
   ['10 ft','2,989 × 2,435','2,795 × 2,240','6.3 m²','1,300–1,400 kg'],
@@ -2131,6 +2157,54 @@ DOCS['leisure'] = { cat:'industry', name:'Leisure', num:'05',
           ['Bubble Hotel Surrein','Switzerland','—','—','NatureDome']],
    foot:'No leisure project currently appears in HEPF’s published case-study data — size and timeline figures for this sector are not available and are shown as dashes.' } };
 
+
+/* ── Per-industry: which lines actually apply, and a photo mosaic ──
+   The selection is the message. Housing does not get a freezer
+   container; Education does not get retail. Only lines HEPF's own
+   sector pages name or show are listed.                            */
+DOCS.housing.lines = [
+  ['classic-line','Classic Line','Proven in Swiss refugee housing. Configurable, Swiss and EU compliant.','9 units, Hüttikon',A+'6a3c00485e398c31e2da347d_classic-line.webp'],
+  ['plus-line','Plus Line','Where occupancy runs for years and the thermal envelope has to hold.','0.14 W/m²K',A+'6a3c007ab73632dd6b7baf72_plus-line.webp'],
+  ['fl-bedstay','FL-BedStay','Sleeping capacity at volume for emergency and workforce schemes.','40 beds per truck',A+'6a3c010aa318cdaf1ffa31ff_fl-bedstay.webp'],
+  ['sanitary-line','Sanitary Line','Fresh-water washrooms and showers that join into the housing block.','5 layouts',A+'6a3c00f1305a9a87ee103b5e_sanitary-line.webp']
+];
+DOCS.education.lines = [
+  ['classic-line','Classic Line','The education default. Used for both Swiss school projects.','13 modules, Wetzikon',A+'6a3c00485e398c31e2da347d_classic-line.webp'],
+  ['plus-line','Plus Line','Permanent school buildings where comfort and acoustics matter most.','EI30 standard',A+'6a3c007ab73632dd6b7baf72_plus-line.webp'],
+  ['sanitary-line','Sanitary Line','Barrier-free washrooms meeting accessible sanitary requirements.','Accessible',A+'6a3c00f1305a9a87ee103b5e_sanitary-line.webp'],
+  ['foldable-line','Foldable Line','Bridging classrooms during a build, moved on when the permanent block opens.','5 min deploy',A+'6a3c00bd6ee92b7015e81b6b_foldable-line.webp']
+];
+DOCS.events.lines = [
+  ['foldable-line','Foldable Line','Ten per truck. The line that makes a travelling compound affordable.','80% logistics saving',A+'6a3c00bd6ee92b7015e81b6b_foldable-line.webp'],
+  ['fl-retail','FL-Retail Line','Bars, food, coffee and ticketing with the shopfront built into the shell.','&lt;10 min to trade',A+'6a3c011f63750bc01e00425e_fl-retail.webp'],
+  ['fl-bedstay','FL-BedStay','Crew and volunteer sleeping capacity delivered in one movement.','40 beds per truck',A+'6a3c010aa318cdaf1ffa31ff_fl-bedstay.webp'],
+  ['classic-line','Classic Line','Larger builds and cold-weather deployments. Used at Davos.','600 m² in 13 days',A+'6a3c00485e398c31e2da347d_classic-line.webp']
+];
+DOCS.commercial.lines = [
+  ['plus-line','Plus Line','Customer-facing and permanent. Delivered the German workspace scheme.','140 m² in 10 days',A+'6a3c007ab73632dd6b7baf72_plus-line.webp'],
+  ['foldable-line','Foldable Line','Site offices that move between projects instead of being rebuilt.','10 per truck',A+'6a3c00bd6ee92b7015e81b6b_foldable-line.webp'],
+  ['storage-line','Storage Line','Secure weatherproof storage in six sizes, available at short notice.','10 t payload',A+'6a3c009d2d69b2cc19a36afa_storage-line.webp'],
+  ['reefer-line','Reefer Line','Chilled and frozen storage placed where the goods actually are.','−40 to +45 °C',A+'6a3c0144416a5b1d1e4ef697_reefer-line.webp']
+];
+DOCS.leisure.lines = [
+  ['smart-line','Smart Line','The flagship guest unit. Finished, furnished and running in under an hour.','18–38 m²',A+'6a3c00daf34e4c04bec7c2a5_smart-line.webp'],
+  ['plus-line','Plus Line','Larger permanent buildings alongside the rooms — reception, dining, spa.','Premium envelope',A+'6a3c007ab73632dd6b7baf72_plus-line.webp'],
+  ['sanitary-line','Sanitary Line','Poolside changing, showers and guest washrooms on a wet-area spec.','Fresh water',A+'6a3c00f1305a9a87ee103b5e_sanitary-line.webp'],
+  ['classic-line','Classic Line','Back-of-house and staff accommodation behind the guest-facing units.','Configurable',A+'6a3c00485e398c31e2da347d_classic-line.webp']
+];
+
+DOCS.housing.mosaic = ['6a162c106dc866b6bd056412_image%2045.webp','6a3b98646c74d8900ee609fa_resize-1.webp','6a3b9eb8f49903906db82035_imresizer-image%2025.webp','6a29442f7f5dd265e2706f76_image%2029.webp','6a453b2247bbe264a1f7fe70_u_03-1030x773.webp','6a2c09c09bd29ebc1dbfc2a4_swiss_house_realistic.webp','6a29448e4195687845157d3a_imresizer-image%2025.webp','6a454bb1660e8feefcaaee67_6050228f71e3e29bffa05ce884c5bccc87513a35.webp','6a38ff8b50b45cba465b9fe6_IMG_2361-2-1920x1280.webp'];
+DOCS.education.mosaic = ['6a47245145090992d3aeed2f_image%20446.webp','6a3118ed8b6030d8c905fddb_DSC04979.webp','6a33ad213cfb698e0c9bb498_Kindergarten_Sevrier_aerial_2-rz.webp','6a3116ca0d884438a1d73d31_Eggenfelden_8-rz.webp','6a3131cb6c4a8b7d423a8589_Grundschule%20Fundatia%20Karin%20(5).webp','6a33afcbcf7d8d919be30420_Volksschule_Matzendorf_13.webp','6a472498af751381b18d44c0_image%20447.webp','6a472492540732dbafb0ff36_image%20448.webp','6a2bcdf16e48d63556649c6c_Kiga_Saalfelden.webp'];
+DOCS.events.mosaic = ['6a2bfa4c8b51648e8c1286d3_image%201.webp','6a3ba9042e3e3da97455ed07_tempImage2Qqliz.webp','6a3baba62c4d26cbb8f362d9_2D2A7612.webp','6a3ba6e860537e555d42f983_Personalunterkunft_Werzers_Hotel_Portschach_6.webp','6a453c64d89555f7e0242f39_2D2A7564%201.webp','6a453f13bb40835e4e38b8bb_image%20417.webp','6a4688d781514b6ba07d33d6_picture_02_stacked_units.webp','6a2c0239b9fde9891efd658a_IMG_5884_5.webp','6a452332534026b4775dad6e_2D2A7446%201.webp'];
+DOCS.commercial.mosaic = ['6a162cf20f080cdcf43a04d4_image%2038.webp','6a3bd3f6f74a28da9c72bf7e_Apotheke_BM-Anlage_A-Pottenbrunn_8-rz.webp','6a3bac790e53c714b957f45b_Gro%CC%88nland%20Bergbau%202-rz.webp','6a453a048f2c717405e96bf1_3bc89338ae615d40cd3d79f8d5ba8f611da47e9a.webp','6a46c12b3b6becef3bf5960f_Bu%CC%88ro%20Holzverkleidung%20PLUS%20Line%20(3).webp','6a46c57273cf93265f5709a9_PHOTO-2026-03-18-13-38-15.webp','6a452967a38d580593101870_Billa%20Box%20(5)-rz%201.webp','6a29725ec1cb55f68cc55bc2_CTX_FAMAR_Industrie_DSC09065_optimized_400.webp','6a45280d92ab1081b58cea1e_CTX_HRX%20Verkaufslokal_DSC08988%201.webp'];
+DOCS.leisure.mosaic = ['6a22d26f1874f9213506ab9b_image%2011.webp','6a3bea2daf3cfd3ba27c8829_e96bcddb-8c07-481d-aa07-402243f8414e.webp','6a3bee556997a46876d5258a_resize-1.webp','6a46be3e8eb7d08ca7638258_6050228f71e3e29bffa05ce884c5bccc87513a35.webp','6a46c1f42ba0d59f2fb1dd9e_6a46c1dee7584eb4c88c39e5_resize-15.webp','6a46c2100f1bb988e8c0fa9e_Fitnessstudio%20Italien%20(6)%201.webp','6a2bff7c24cd0988b1feba5e_565ED3F2-CFD7-4788-A689-E9EE78757257_1_201_a.webp','6a2c004909344eb19bcf34a8_Weggis-5-1.webp','6a2a5975588c9c25019449eb_PHOTO-2026-02-24-17-27-10%208.webp'];
+
+DOCS.housing.linesLede    = 'Four of the ten HEPF lines are built for people to live in. These are those four — the rest of the range is not shown here because it would not belong on a housing scheme.';
+DOCS.education.linesLede  = 'Schools need barrier-free access, room-level climate control and a building that can leave without a trace. Four lines meet that; the rest of the range does not appear here.';
+DOCS.events.linesLede     = 'Events are won and lost on logistics, so the folding platform leads. These four cover a whole compound — retail, crew, command and the large builds.';
+DOCS.commercial.linesLede = 'Commercial scope swings from a gatehouse to a cold store, which is why four different lines appear here rather than one flexible compromise.';
+DOCS.leisure.linesLede    = 'Guest-facing accommodation is judged on finish, so the range narrows sharply. These four cover the rooms, the back-of-house and the wet areas.';
+
 </script>
 
 <script id="render-script">
@@ -2172,16 +2246,59 @@ function pageIdea(d){
   return '<section class="page"><div class="pad">'
    + '<span class="eyebrow">' + esc(i.eyebrow) + '</span>'
    + '<h2 style="margin-top:5mm; max-width:145mm">' + i.h + '</h2>'
-   + '<p class="lede" style="margin-top:6mm; max-width:152mm">' + i.lede + '</p>'
-   + '<div class="threecol">' + i.cols.map(function(c, n){
+   + '<p class="lede" style="margin-top:' + (d.cat==='industry'?'4mm':'6mm') + '; max-width:152mm">' + i.lede + '</p>'
+   + '<div class="threecol"' + (d.cat==='industry' ? ' style="margin-top:7mm"' : '') + '>' + i.cols.map(function(c, n){
         return '<div><div class="num">0' + (n + 1) + '</div><h3>' + c.t + '</h3><p>' + c.p + '</p></div>'; }).join('')
    + '</div>'
-   + '<div style="margin-top:10mm"><span class="eyebrow muted">Where it fits</span>'
-   + '<div class="fitstrip" style="margin-top:4mm">' + i.chips.map(function(c){ return '<span class="chip">' + c + '</span>'; }).join('') + '</div></div>'
-   + '</div><div class="grow"></div>'
-   + '<div class="picker" style="margin:0 16mm 10mm 16mm"><span class="eyebrow muted">Choosing your line</span><div style="margin-top:5mm">'
-   + i.picker.map(function(r){ return '<div class="row' + (r[2] ? ' on' : '') + '"><span class="k">' + r[0] + '</span><span class="v">' + r[1] + '</span></div>'; }).join('')
-   + '</div></div>' + foot(d, i.eyebrow, 2) + '</section>';
+   + (d.cat === 'industry' ? '' :
+       '<div style="margin-top:10mm"><span class="eyebrow muted">Where it fits</span>'
+       + '<div class="fitstrip" style="margin-top:4mm">' + i.chips.map(function(c){ return '<span class="chip">' + c + '</span>'; }).join('') + '</div></div>')
+   + (d.cat === 'industry' && d.mosaic ? mosaicBlock(d) : '')
+   + '</div>'
+   + (d.cat === 'industry' ? '' :
+       '<div class="grow"></div><div class="picker" style="margin:0 16mm 10mm 16mm"><span class="eyebrow muted">Choosing your line</span><div style="margin-top:5mm">'
+       + i.picker.map(function(r){ return '<div class="row' + (r[2] ? ' on' : '') + '"><span class="k">' + r[0] + '</span><span class="v">' + r[1] + '</span></div>'; }).join('')
+       + '</div></div>')
+   + (d.cat === 'industry' ? '<div class="grow"></div>' : '')
+   + foot(d, i.eyebrow, 2) + '</section>';
+}
+
+/* Three rows of nine square photographs, offset so they run off both
+   side edges, with the container clipped so the last row bleeds off the
+   bottom without making the page taller than A4. */
+function mosaicBlock(d){
+  var rows = '';
+  for (var r = 0; r < 3; r++){
+    rows += '<div class="mrow">';
+    for (var c = 0; c < 3; c++){
+      var f = d.mosaic[r * 3 + c];
+      rows += slotImg(f ? B2 + f : '', d.name);
+    }
+    rows += '</div>';
+  }
+  return '<div class="mosaic" style="height:' + (d.mosaicH || 162) + 'mm">' + rows + '</div>';
+}
+
+function pageLines(d){
+  return '<section class="page"><div class="pad">'
+   + '<span class="eyebrow">Applicable Lines</span>'
+   + '<h2 style="margin-top:4mm; max-width:140mm">Not every line<br>belongs here.</h2>'
+   + '<p class="lede" style="margin-top:4mm; max-width:152mm">' + d.linesLede + '</p>'
+   + '<div class="lines">' + d.lines.map(function(l){
+       return '<div>' + slotImg(l[4], l[1])
+            + '<h3>' + l[1] + '</h3><p>' + l[2] + '</p>'
+            + '<span class="fig">' + l[3] + '</span></div>'; }).join('') + '</div>'
+   + '<div class="datahead" style="margin-top:8mm"><div><span class="eyebrow muted">Finishes</span>'
+   + '<h3 style="font-size:13pt; margin-top:2.5mm">Specified to the sector</h3></div>'
+   + '<span class="small">Cladding, roof, energy, flooring and fit-out</span></div>'
+   + '<div class="swatches" style="margin-top:4mm">' + SWATCHES.map(function(w){
+       return '<div class="img"><img referrerpolicy="no-referrer" src="' + B + w[0] + '" alt="" onerror="this.parentNode.classList.add(\'noimg\');this.remove()"><i>' + w[1] + '</i></div>'; }).join('') + '</div>'
+   + '<div style="margin-top:8mm"><span class="eyebrow muted">Where it fits</span>'
+   + '<div class="fitstrip" style="margin-top:4mm">' + d.idea.chips.map(function(c){ return '<span class="chip">' + c + '</span>'; }).join('') + '</div></div>'
+   + '<div class="outgrow"><h3>One team, whichever line you land on</h3>'
+   + '<p>Where a project outgrows the shortlist above, we move you onto the line that fits rather than stretching the one you started with. Planning, permitting, foundations, installation and fit-out stay with the same team throughout.</p></div>'
+   + '<div class="partners"><span class="eyebrow muted">Fit-out partners</span><div class="row">' + partnerRow() + '</div></div>'
+   + '</div><div class="grow"></div>' + foot(d, 'Applicable Lines', 4) + '</section>';
 }
 
 function pageRange(d){
@@ -2334,12 +2451,13 @@ function pageClose(d){
 }
 
 function renderDoc(d){
-  return [ pageCover(d), pageIdea(d), pageRange(d), pageSpec(d),
-           d.cat === 'product' ? pageTech(d) : pageProof(d), pageClose(d) ];
+  return d.cat === 'product'
+    ? [ pageCover(d), pageIdea(d), pageRange(d), pageSpec(d),  pageTech(d),  pageClose(d) ]
+    : [ pageCover(d), pageIdea(d), pageRange(d), pageLines(d), pageProof(d), pageClose(d) ];
 }
 var FRAME_NAMES = {
   product : ['Cover','The Idea','The Range','Specification','The System','Working with HEPF'],
-  industry: ['Cover','The Brief','Solutions','Specification','Proof','Working with HEPF']
+  industry: ['Cover','The Brief','Solutions','Applicable Lines','Proof','Working with HEPF']
 };
 
 </script>
