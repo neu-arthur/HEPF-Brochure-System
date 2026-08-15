@@ -1,46 +1,224 @@
 /* ============================================================
    BUILD — turns the studio file into the deployable site.
-   Strips the Brochure Studio panel and leaves everything else:
-   all 15 documents, the canvas, and the comment layer.
-   Run by Netlify automatically on every push.
+
+   Two artefacts come out of this:
+
+     index.html                     a sign-in card and nothing else
+     netlify/functions/lib/
+       payload.mjs                  the brochure, base64, server-side only
+
+   The brochure is never a static file on the site. It is handed out by
+   /api/app once Google has verified the visitor and the address is on the
+   allow list, so an unauthenticated visitor cannot read the pages out of
+   view-source.
    ============================================================ */
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { createCipheriv, randomBytes } from 'node:crypto';
 
-const SRC = 'hepf-basic-line-brochure.html';
-const OUT = 'index.html';
-
-// Each entry: a human name and the exact block to remove.
-const STRIP = [
-  ['studio stylesheet', /<style id="studio-style">[\s\S]*?<\/style>\s*/],
-  ['studio panel',      /<aside id="studio">[\s\S]*?<\/aside>\s*/],
-  ['file input',        /<input type="file" id="st-file"[^>]*>\s*/],
-  ['confirm modal',     /<div id="st-modal"[\s\S]*?<\/div>\s*<\/div>\s*<\/div>\s*/],
-  ['studio script',     /<script id="studio-script">[\s\S]*?<\/script>\s*/],
-];
+const SRC     = 'hepf-basic-line-brochure.html';
+const SHELL   = 'index.html';
+const PAYLOAD = 'netlify/functions/lib/payload.mjs';
 
 let html = await readFile(SRC, 'utf8');
-const before = html.length;
-const report = [];
 
-for (const [name, re] of STRIP) {
-  if (!re.test(html)) { console.error(`✗ could not find: ${name}`); process.exit(1); }
-  html = html.replace(re, '');
-  report.push(name);
-}
+// Review mode: authoring-only controls hide via CSS. Nothing is deleted —
+// removing elements the studio script binds to just produces null refs.
+if (!/<html lang="en">/.test(html)) { console.error('✗ could not find the <html> tag'); process.exit(1); }
+html = html.replace('<html lang="en">', '<html lang="en" data-review>');
 
 // Guard: the deployable file must still contain the whole library.
 const checks = {
   'documents in model': (html.match(/cat:'(product|industry)'/g) || []).length,
   'static pages':       (html.match(/class="page/g) || []).length,
   'partner logos':      (html.match(/id="pl-/g) || []).length,
-  'comment layer':      html.includes('id="cmt-bar"') ? 1 : 0,
+  'comment layer':      html.includes('id="cmt-add"') ? 1 : 0,
   'canvas':             html.includes('id="wsbar"') ? 1 : 0,
-  'studio removed':     html.includes('id="studio"') ? 0 : 1,
+  'account chip':       html.includes('id="acct-btn"') ? 1 : 0,
+  'save button':        html.includes('id="mem-save"') ? 1 : 0,
+  'review mode on':     html.includes('data-review') ? 1 : 0,
+  'palette kept':       html.includes('id="st-presets"') ? 1 : 0,
+  'credential hook':    html.includes('window.__CRED') ? 1 : 0,
 };
 const failed = Object.entries(checks).filter(([, v]) => !v);
-if (failed.length) { console.error('✗ build check failed:', failed.map(f => f[0]).join(', ')); process.exit(1); }
+if (failed.length) { console.error('✗ build check failed:', failed.map((f) => f[0]).join(', ')); process.exit(1); }
 
-await writeFile(OUT, html);
-console.log(`✓ ${OUT} written — ${(html.length / 1024).toFixed(0)} KB (stripped ${((before - html.length) / 1024).toFixed(0)} KB)`);
-console.log(`  removed: ${report.join(', ')}`);
-console.log(`  kept:    ${checks['documents in model']} generated documents, ${checks['static pages']} static pages, comments, canvas`);
+// The gate injects a <script> straight after <head>; make sure it exists.
+if (!html.includes('<head>')) { console.error('✗ no bare <head> for the gate to inject into'); process.exit(1); }
+
+/* ---------- the brochure, sealed behind the function ----------
+
+   Netlify serves the contents of the functions directory as static files on
+   a drag-and-drop deploy — /netlify/functions/state.mjs comes back with a
+   200. netlify.toml 404s that path, but a redirect is the wrong last line of
+   defence for the whole brochure, so the payload is encrypted as well. The
+   key lives only in the site's environment; the ciphertext is useless
+   without it.                                                             */
+const KEY_HEX = (process.env.PAYLOAD_KEY || (await readFile('.buildkey', 'utf8').catch(() => ''))).trim();
+if (!/^[0-9a-f]{64}$/.test(KEY_HEX)) {
+  console.error('✗ PAYLOAD_KEY missing or malformed — expected 64 hex characters');
+  process.exit(1);
+}
+const iv = randomBytes(12);
+const c = createCipheriv('aes-256-gcm', Buffer.from(KEY_HEX, 'hex'), iv);
+const sealed = Buffer.concat([c.update(html, 'utf8'), c.final()]);
+const blob = Buffer.concat([iv, c.getAuthTag(), sealed]).toString('base64');
+
+await mkdir('netlify/functions/lib', { recursive: true });
+await writeFile(PAYLOAD,
+  '// Generated by build.mjs — do not edit.\n' +
+  '// AES-256-GCM. Opened by app.mjs with PAYLOAD_KEY from the site\'s\n' +
+  '// environment, and only for a verified, allow-listed Google account.\n' +
+  'export const SEALED = ' + JSON.stringify(blob) + ';\n');
+
+/* ---------- the sign-in card ---------- */
+// The stylesheet mentions the sprite by name in a comment, so anchor on the
+// real element: only the artwork carries a viewBox.
+const TAG = '<symbol id="hepf-logo" viewBox=';
+const at = html.indexOf(TAG);
+if (at < 0 || html.indexOf(TAG, at + 1) >= 0) { console.error('✗ could not lift the wordmark'); process.exit(1); }
+const logo = html.slice(at, html.indexOf('</symbol>', at) + 9);
+if (!/^<symbol id="hepf-logo" viewBox="[^"]+">\s*<path/.test(logo) || logo.length > 40000) {
+  console.error('✗ wordmark slice looks wrong:', logo.length, 'chars'); process.exit(1);
+}
+
+const shell = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>HEPF — Brochure Studio</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; display:flex; align-items:center; justify-content:center; padding:24px;
+    background:#0C0E11; color:#E8E6E2;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .card{
+    width:100%; max-width:372px; background:#101216; border:1px solid #23262C;
+    border-radius:14px; padding:34px 32px 30px; box-shadow:0 26px 70px rgba(0,0,0,.5);
+  }
+  .mark{width:76px; height:auto; fill:#E8E6E2; display:block; margin-bottom:26px}
+  h1{margin:0 0 9px; font-size:19px; font-weight:700; letter-spacing:-.015em}
+  p{margin:0 0 22px; font-size:12.5px; line-height:1.65; color:#868C95}
+  #btn{min-height:44px; display:flex}
+  #msg{margin-top:16px; font-size:11.5px; line-height:1.6; color:#868C95; min-height:17px}
+  #msg.warn{color:#E2734F}
+  #msg b{color:#E8E6E2}
+  .rule{height:1px; background:#23262C; margin:24px 0 15px}
+  .foot{font-size:10.5px; line-height:1.6; color:#5F656E}
+  .spin{
+    width:15px; height:15px; border:2px solid #2B2F36; border-top-color:#C7381F;
+    border-radius:50%; display:inline-block; vertical-align:-3px; margin-right:8px;
+    animation:sp .7s linear infinite;
+  }
+  @keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">${logo}</svg>
+
+<main class="card">
+  <svg class="mark" viewBox="0 0 534 111" role="img" aria-label="HEPF"><use href="#hepf-logo"/></svg>
+  <h1>Brochure Studio</h1>
+  <p>A private working copy of the HEPF brochure set. Sign in with an approved Google account to open it.</p>
+  <div id="btn"></div>
+  <div id="msg"></div>
+  <div class="rule"></div>
+  <div class="foot">Access is limited to named accounts. If you need to be added, ask Arthur.</div>
+</main>
+
+<script>
+(function(){
+  var msg = document.getElementById('msg');
+  var btn = document.getElementById('btn');
+  function say(html, warn){ msg.className = warn ? 'warn' : ''; msg.innerHTML = html; }
+  function busy(text){ say('<span class="spin"></span>' + text); }
+
+  /* The credential is kept for the tab so a refresh does not mean signing in
+     again. sessionStorage, not localStorage: it dies with the tab, which is
+     the right lifetime for something that opens a private document. */
+  var KEEP = 'hepf.cred';
+  function remember(c){ try { sessionStorage.setItem(KEEP, c); } catch(e){} }
+  function forget(){ try { sessionStorage.removeItem(KEEP); } catch(e){} }
+
+  function open(cred){
+    busy('Opening the brochure…');
+    remember(cred);
+    btn.style.display = 'none';
+    fetch('/api/app', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ credential: cred })
+    }).then(function(r){
+      if(!r.ok){
+        return r.json().catch(function(){ return {}; }).then(function(j){
+          throw new Error(j.error || ('sign-in failed (' + r.status + ')'));
+        });
+      }
+      return r.text();
+    }).then(function(doc){
+      document.open();
+      document.write(doc);
+      document.close();
+    }).catch(function(e){
+      forget();
+      btn.style.display = 'flex';
+      say('<b>' + String(e.message || e) + '</b>', true);
+      try { if(window.google && google.accounts) google.accounts.id.disableAutoSelect(); } catch(err){}
+    });
+  }
+
+  function start(clientId){
+    var s = document.createElement('script');
+    s.src = 'https://accounts.google.com/gsi/client';
+    s.async = true; s.defer = true;
+    s.onload = function(){
+      if(!window.google || !google.accounts){ say('<b>Google sign-in is unavailable.</b>', true); return; }
+      google.accounts.id.initialize({
+        client_id: clientId,
+        auto_select: true,
+        callback: function(res){ open(res.credential); },
+        cancel_on_tap_outside: true
+      });
+      google.accounts.id.renderButton(btn, {
+        theme:'filled_black', size:'large', shape:'rectangular',
+        text:'signin_with', width:308, logo_alignment:'center'
+      });
+      say('');
+      /* If this tab already signed in, go straight through. If not, let One
+         Tap try silently before anyone has to click anything. */
+      var kept = null; try { kept = sessionStorage.getItem(KEEP); } catch(e){}
+      if(kept) return open(kept);
+      google.accounts.id.prompt();
+    };
+    s.onerror = function(){ say('<b>Could not reach Google.</b> Check the connection and reload.', true); };
+    document.head.appendChild(s);
+  }
+
+  busy('Checking sign-in…');
+  fetch('/api/state').then(function(r){ return r.json(); }).then(function(cfg){
+    if(!cfg.configured){
+      say('<b>Not configured yet.</b> GOOGLE_CLIENT_ID is not set on this site.', true);
+      return;
+    }
+    start(cfg.clientId);
+  }).catch(function(){
+    say('<b>Offline.</b> This page needs the deployed site to sign you in.', true);
+  });
+})();
+</script>
+
+</body>
+</html>
+`;
+
+await writeFile(SHELL, shell);
+
+console.log(`✓ ${SHELL} — sign-in card, ${(shell.length / 1024).toFixed(1)} KB, no brochure content`);
+console.log(`✓ ${PAYLOAD} — ${(html.length / 1024).toFixed(0)} KB of brochure, server-side only`);
+console.log(`  ${checks['documents in model']} generated documents · ${checks['static pages']} static pages · comments, canvas, palette, account chip`);

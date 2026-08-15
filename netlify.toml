@@ -1,7 +1,9 @@
 # HEPF brochure — Netlify configuration
 #
-# On every push Netlify runs build.mjs, which strips the Brochure Studio
-# panel out of the master file and writes index.html. You never hand-export.
+# build.mjs writes two things: index.html, which is only a sign-in card, and
+# netlify/functions/lib/payload.mjs, which holds the brochure. The brochure is
+# served by /api/app and only after Google has verified the visitor, so it is
+# never a static asset on this site.
 
 [build]
   command   = "node build.mjs"
@@ -11,9 +13,54 @@
 [build.environment]
   NODE_VERSION = "20"
 
+# Nothing outside the sign-in card is meant to be reachable. The publish root
+# is the repository root, so everything that is not the card gets a hard 404
+# ahead of static file serving.
+[[redirects]]
+  from = "/netlify/*"
+  to = "/index.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/node_modules/*"
+  to = "/index.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/package.json"
+  to = "/index.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/package-lock.json"
+  to = "/index.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/build.mjs"
+  to = "/index.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/hepf-basic-line-brochure.html"
+  to = "/index.html"
+  status = 404
+  force = true
+
 [[headers]]
   for = "/*"
   [headers.values]
     X-Frame-Options        = "SAMEORIGIN"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy        = "no-referrer"
+    X-Robots-Tag           = "noindex, nofollow"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-store"

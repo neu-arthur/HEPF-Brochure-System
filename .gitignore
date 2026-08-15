@@ -1,7 +1,9 @@
+
 node_modules/
 .netlify/
 .DS_Store
 index.html
-
-# scratch
+package-lock.json
 *.png
+.buildkey
+netlify/functions/lib/payload.mjs
