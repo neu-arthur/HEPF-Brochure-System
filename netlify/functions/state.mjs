@@ -5,6 +5,7 @@
 //        load                         -> the current state
 //        save   { state, anchor?, label? }
 //        history                      -> the list of anchored versions
+//        activity                     -> recent save/restore activity
 //        revert { id }                -> makes an anchored version current
 //
 // The GET is deliberately anonymous: the sign-in card needs the client ID
@@ -20,12 +21,47 @@ import { identify, json, CLIENT_ID } from './lib/identity.mjs';
 
 const KEY = 'shared';
 const INDEX = 'history';
+const ACTIVITY = 'activity';
 const KEEP = 24;          // anchors kept; the oldest are dropped with their copies
+const KEEP_ACTIVITY = 100;
 
 const snapKey = (id) => `snap/${id}`;
 
 async function readIndex(store) {
   return (await store.get(INDEX, { type: 'json' })) || [];
+}
+
+async function rawActivity(store) {
+  const log = (await store.get(ACTIVITY, { type: 'json' })) || [];
+  return Array.isArray(log) ? log : [];
+}
+
+function currentActivity(current) {
+  if (!current?.savedAt) return null;
+  return {
+    id: `seed-${String(current.savedAt).replace(/[^0-9]/g, '')}`,
+    type: 'save',
+    at: current.savedAt,
+    by: current.savedBy || 'Unknown',
+    label: 'Current shared save',
+    seeded: true,
+  };
+}
+
+async function readActivity(store, current) {
+  const log = await rawActivity(store);
+  if (log.length) return log;
+  const seed = currentActivity(current);
+  return seed ? [seed] : [];
+}
+
+async function appendActivity(store, entry, previousCurrent) {
+  let log = await rawActivity(store);
+  const seed = currentActivity(previousCurrent);
+  if (!log.length && seed && seed.at !== entry.at) log = [seed];
+  log = [entry, ...log].slice(0, KEEP_ACTIVITY);
+  await store.setJSON(ACTIVITY, log);
+  return log;
 }
 
 export default async (req) => {
@@ -60,6 +96,11 @@ export default async (req) => {
     return json({ ok: true, history: await readIndex(store) });
   }
 
+  if (body.action === 'activity') {
+    const current = (await store.get(KEY, { type: 'json' })) || null;
+    return json({ ok: true, activity: await readActivity(store, current) });
+  }
+
   if (body.action === 'revert') {
     if (!body.id) return json({ error: 'no version given' }, 400);
     const snap = await store.get(snapKey(body.id), { type: 'json' });
@@ -80,6 +121,14 @@ export default async (req) => {
 
     const record = { savedAt: new Date().toISOString(), savedBy: who.name, state: snap.state };
     await store.setJSON(KEY, record);
+    await appendActivity(store, {
+      id: `restore-${record.savedAt.replace(/[^0-9]/g, '')}`,
+      type: 'restore',
+      at: record.savedAt,
+      by: who.name,
+      email: who.email,
+      label: 'Restored a version',
+    }, current);
     return json({ ok: true, state: snap.state, savedAt: record.savedAt, savedBy: record.savedBy });
   }
 
@@ -117,7 +166,17 @@ export default async (req) => {
       history = history.slice(0, KEEP);
       await store.setJSON(INDEX, history);
     }
-    return json({ ok: true, savedAt: at, savedBy: who.name, anchored: Boolean(body.anchor), history });
+    const activity = await appendActivity(store, {
+      id: `save-${at.replace(/[^0-9]/g, '')}`,
+      type: 'save',
+      at,
+      by: who.name,
+      email: who.email,
+      label: String(body.label || (body.anchor ? 'Saved' : 'Autosaved')).slice(0, 80),
+      anchored: Boolean(body.anchor),
+      size: JSON.stringify(body.state).length,
+    }, current);
+    return json({ ok: true, savedAt: at, savedBy: who.name, anchored: Boolean(body.anchor), history, activity });
   }
 
   return json({ error: 'unknown action' }, 400);

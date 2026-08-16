@@ -2311,17 +2311,17 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
   #acc-modal .out{font-size:11px; line-height:1.6; margin:-6px 0 14px; color:#7C818B; min-height:15px}
   #acc-modal .out.bad{color:#E2734F}
 
-  #doc-modal,#acc-modal{
+  #doc-modal,#acc-modal,#act-modal{
     position:fixed; inset:0; z-index:10000; background:rgba(8,9,11,.74);
     display:flex; align-items:center; justify-content:center;
     font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; color:#E8E6E2;
   }
-  #doc-modal[hidden],#acc-modal[hidden]{display:none}
-  #doc-modal .dbox,#acc-modal .dbox{
+  #doc-modal[hidden],#acc-modal[hidden],#act-modal[hidden]{display:none}
+  #doc-modal .dbox,#acc-modal .dbox,#act-modal .dbox{
     background:#16191E; border:1px solid #2B2F36; border-radius:12px;
     padding:22px; width:340px; box-shadow:0 20px 56px rgba(0,0,0,.55);
   }
-  #doc-modal b.t,#acc-modal b.t{font-size:14px; display:block; margin-bottom:16px}
+  #doc-modal b.t,#acc-modal b.t,#act-modal b.t{font-size:14px; display:block; margin-bottom:16px}
   #doc-modal label,#acc-modal label{display:block; font-size:10px; letter-spacing:.13em; text-transform:uppercase;
     font-weight:700; color:#7C818B; margin-bottom:14px}
   #doc-modal input,#doc-modal select,#acc-modal input{
@@ -2330,17 +2330,26 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
     font:600 12px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
     letter-spacing:0; text-transform:none;
   }
-  #doc-modal p,#acc-modal p{font-size:11.5px; color:#7C818B; line-height:1.6; margin:0 0 18px; font-family:inherit}
-  #doc-modal .drow,#acc-modal .drow{display:flex; gap:8px}
-  #doc-modal .drow button,#acc-modal .drow button{
+  #doc-modal p,#acc-modal p,#act-modal p{font-size:11.5px; color:#7C818B; line-height:1.6; margin:0 0 18px; font-family:inherit}
+  #doc-modal .drow,#acc-modal .drow,#act-modal .drow{display:flex; gap:8px}
+  #doc-modal .drow button,#acc-modal .drow button,#act-modal .drow button{
     flex:1; padding:10px; border:1px solid #2B2F36; background:#171A1F; color:#E8E6E2;
     border-radius:6px; cursor:pointer; font:600 12px inherit;
   }
-  #doc-modal .drow button:hover,#acc-modal .drow button:hover{background:#22262C}
-  #doc-modal .drow button.pri,#acc-modal .drow button.pri{background:#C7381F; border-color:#C7381F; color:#fff}
-  #doc-modal .drow button.pri:hover,#acc-modal .drow button.pri:hover{background:#D84024}
-  #doc-modal .drow button[disabled],#acc-modal .drow button[disabled]{opacity:.4; cursor:default}
-  @media print{ #docmenu,#doc-modal,#acc-modal{display:none !important} }
+  #doc-modal .drow button:hover,#acc-modal .drow button:hover,#act-modal .drow button:hover{background:#22262C}
+  #doc-modal .drow button.pri,#acc-modal .drow button.pri,#act-modal .drow button.pri{background:#C7381F; border-color:#C7381F; color:#fff}
+  #doc-modal .drow button.pri:hover,#acc-modal .drow button.pri:hover,#act-modal .drow button.pri:hover{background:#D84024}
+  #doc-modal .drow button[disabled],#acc-modal .drow button[disabled],#act-modal .drow button[disabled]{opacity:.4; cursor:default}
+  #act-list{max-height:min(440px, 58vh); overflow:auto; margin:0 0 16px; border-top:1px solid #23262C}
+  #act-list .arow{display:flex; gap:10px; align-items:flex-start; padding:10px 0; border-bottom:1px solid #23262C}
+  #act-list .dot{width:7px; height:7px; border-radius:50%; background:#3FB07A; flex:0 0 7px; margin-top:6px}
+  #act-list .dot.restore{background:#C7381F}
+  #act-list .main{flex:1; min-width:0}
+  #act-list b{display:block; font-size:12px; color:#E8E6E2; line-height:1.35}
+  #act-list i{display:block; font-style:normal; font-size:10.5px; color:#7C818B; line-height:1.5; margin-top:2px}
+  #act-list em{font-style:normal; color:#5F656E}
+  #act-list .empty{font-size:11px; color:#7C818B; line-height:1.6; padding:12px 0}
+  @media print{ #docmenu,#doc-modal,#acc-modal,#act-modal{display:none !important} }
 </style>
 
 <div id="wsbar">
@@ -2374,6 +2383,7 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
         <div id="acct-hist"></div>
         <button type="button" id="mem-load">Reload last save</button>
         <button type="button" id="mem-rescue" hidden>Restore this browser&rsquo;s copy</button>
+        <button type="button" id="acct-activity">Activity log</button>
         <button type="button" id="acct-who">Who can get in</button>
         <button type="button" id="acct-out">Sign out</button>
       </div>
@@ -2382,6 +2392,18 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
 </div>
 
 <div id="canvas"><div id="surface"></div></div>
+
+<div id="act-modal" hidden>
+  <div class="dbox">
+    <b class="t">Activity log</b>
+    <p>Recent saves and restores for the shared brochure. This log records who changed the live shared version and when.</p>
+    <div id="act-list"><div class="empty">Loading…</div></div>
+    <div class="drow">
+      <button type="button" id="act-close">Close</button>
+      <button type="button" class="pri" id="act-refresh">Refresh</button>
+    </div>
+  </div>
+</div>
 
 <div id="acc-modal" hidden>
   <div class="dbox">
@@ -6810,7 +6832,7 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
   var cred = (typeof window.__CRED === 'string' && window.__CRED) || null;
   var me = null, savedAt = null, savedBy = null, dirty = false, stale = 0;
 
-  var btnSave, btnLoad, btnAcct, menu, metaEl, avEl, avEl2, nameEl, nameEl2, mailEl, outBtn;
+  var btnSave, btnLoad, btnAcct, btnActivity, menu, metaEl, avEl, avEl2, nameEl, nameEl2, mailEl, outBtn;
 
   /* ---------- reading and writing the pages ---------- */
   /* Pages, addressed by the block they came from. Position is not identity:
@@ -7476,6 +7498,7 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
       say(savedLine(), 'on');
       setSave('on', 'Saved');
       paintHistory();
+      if(btnActivity && btnActivity.dataset.open === '1') loadActivity();
       if(again){ again = false; touch(); }
       else setTimeout(function(){ if(!dirty) setSave('on', 'Saved \u00b7 ' + ago(savedAt)); }, 2600);
     }).catch(function(){
@@ -7518,7 +7541,74 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
       say('Restored the version from <b>' + when(r.body.savedAt) + '</b>', 'on');
       setSave('on', 'Saved');
       loadHistory();
+      if(btnActivity && btnActivity.dataset.open === '1') loadActivity();
     }).catch(function(){ setSave('on'); say('<b>Network error</b>', 'warn'); });
+  }
+
+  /* ---------- activity log ---------- */
+  function fmtBytes(n){
+    n = Number(n) || 0;
+    return n ? (n / 1048576).toFixed(2) + ' MB' : '';
+  }
+  function htmlEsc(s){
+    var d = document.createElement('div');
+    d.textContent = s == null ? '' : s;
+    return d.innerHTML;
+  }
+  function paintActivity(items){
+    var host = document.getElementById('act-list');
+    if(!host) return;
+    if(!items || !items.length){
+      host.innerHTML = '<div class="empty">No activity has been recorded yet.</div>';
+      return;
+    }
+    host.innerHTML = items.map(function(a){
+      var kind = a.type === 'restore' ? 'restore' : 'save';
+      var verb = a.type === 'restore' ? 'restored a version' : 'saved';
+      var detail = [];
+      if(a.email) detail.push(htmlEsc(a.email));
+      if(a.label) detail.push(htmlEsc(a.label));
+      if(a.size) detail.push(fmtBytes(a.size));
+      if(a.seeded) detail.push('from before the activity log existed');
+      return '<div class="arow"><span class="dot ' + kind + '"></span><div class="main">'
+        + '<b>' + htmlEsc(a.by || 'Unknown') + ' ' + verb + '</b>'
+        + '<i>' + htmlEsc(when(a.at)) + (detail.length ? ' · <em>' + detail.join(' · ') + '</em>' : '') + '</i>'
+        + '</div></div>';
+    }).join('');
+  }
+  function loadActivity(){
+    var host = document.getElementById('act-list');
+    if(host) host.innerHTML = '<div class="empty">Loading…</div>';
+    return post('activity').then(function(r){
+      if(!r.ok){
+        if(host) host.innerHTML = '<div class="empty">' + htmlEsc(r.body.error || 'Could not load activity') + '</div>';
+        return;
+      }
+      paintActivity(r.body.activity || []);
+    }).catch(function(){
+      if(host) host.innerHTML = '<div class="empty">Network error.</div>';
+    });
+  }
+  function wireActivity(){
+    var modal = document.getElementById('act-modal'),
+        close = document.getElementById('act-close'),
+        refresh = document.getElementById('act-refresh');
+    if(!modal || !btnActivity) return;
+    btnActivity.addEventListener('click', function(){
+      if(!cred) return;
+      menu.hidden = true;
+      btnActivity.dataset.open = '1';
+      modal.hidden = false;
+      loadActivity();
+    });
+    close.addEventListener('click', function(){ modal.hidden = true; btnActivity.dataset.open = ''; });
+    refresh.addEventListener('click', loadActivity);
+    modal.addEventListener('click', function(e){
+      if(e.target === modal){ modal.hidden = true; btnActivity.dataset.open = ''; }
+    });
+    document.addEventListener('keydown', function(e){
+      if(e.key === 'Escape' && !modal.hidden){ modal.hidden = true; btnActivity.dataset.open = ''; }
+    });
   }
 
   /* ---------- who can get in ----------
@@ -7597,6 +7687,7 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
     btnSave = document.getElementById('mem-save');
     btnLoad = document.getElementById('mem-load');
     btnAcct = document.getElementById('acct-btn');
+    btnActivity = document.getElementById('acct-activity');
     menu    = document.getElementById('acct-menu');
     metaEl  = document.getElementById('acct-meta');
     avEl    = document.getElementById('acct-av');
@@ -7661,6 +7752,7 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
       if(!dirty && savedAt && btnSave.textContent.indexOf('Saved') === 0)
         setSave('on', 'Saved \u00b7 ' + ago(savedAt));
     }, 30000);
+    wireActivity();
     wireAccess();
     outBtn.addEventListener('click', function(){
       /* the kept credential is what makes a refresh painless; leaving it
@@ -7681,6 +7773,7 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
       outBtn.disabled = true;
       var whoBtn = document.getElementById('acct-who');
       if(whoBtn) whoBtn.disabled = true;
+      if(btnActivity) btnActivity.disabled = true;
       say('<b>Offline copy</b><br>Saving needs the deployed site.', 'warn');
       return;
     }
