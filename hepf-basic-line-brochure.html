@@ -1657,31 +1657,94 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
     }
     slot = s; picker.value = ''; picker.click();
   });
-  /* A photograph off a phone is four megabytes and the whole save has four
-     and a half. Pictures come down to something a printed page can use —
-     2000px on the long edge — before they go anywhere near the payload.
-     Transparency is kept; everything else becomes a JPEG. */
+  /* A photograph off a phone can be larger than the whole Netlify request.
+     Before any local image becomes part of the document state, cap it at
+     2000px on the long edge and encode it as a modern web format when the
+     browser can. The save module calls the same optimizer again as a safety
+     pass, so old oversized browser backups can repair themselves too. */
+  var IMG_MAX_EDGE = 2000;
+  var IMG_TARGET_CHARS = 360000;
+  var IMG_EDGES = [2000, 1600, 1200, 900];
+  var IMG_QUALITIES = [0.8, 0.68, 0.56, 0.44, 0.34];
+  var IMG_TYPES = ['image/avif', 'image/webp', 'image/jpeg'];
+
+  function dataUrlType(s){
+    var m = /^data:([^;,]+)/i.exec(String(s || ''));
+    return m ? m[1].toLowerCase() : '';
+  }
+  function supported(out, type){
+    return typeof out === 'string' && out.indexOf('data:' + type) === 0;
+  }
+  function canvasFor(im, edge){
+    var w = im.naturalWidth || im.width, h = im.naturalHeight || im.height;
+    var k = Math.min(1, edge / Math.max(w, h));
+    var c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(w * k));
+    c.height = Math.max(1, Math.round(h * k));
+    var ctx = c.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    if(dataUrlType(im.src) === 'image/jpeg'){
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, c.width, c.height);
+    }
+    ctx.drawImage(im, 0, 0, c.width, c.height);
+    return c;
+  }
+  function encode(c, type, q){
+    if(type === 'image/jpeg'){
+      var flat = document.createElement('canvas');
+      flat.width = c.width; flat.height = c.height;
+      var fctx = flat.getContext('2d');
+      fctx.fillStyle = '#fff';
+      fctx.fillRect(0, 0, flat.width, flat.height);
+      fctx.drawImage(c, 0, 0);
+      c = flat;
+    }
+    var out = '';
+    try { out = c.toDataURL(type, q); } catch(e){ return ''; }
+    return supported(out, type) ? out : '';
+  }
+  function optimizeDataUrl(src, opts){
+    opts = opts || {};
+    return new Promise(function(done){
+      src = String(src || '');
+      if(src.indexOf('data:image/') !== 0) return done(src);
+      var im = new Image();
+      im.onload = function(){
+        var w = im.naturalWidth || im.width, h = im.naturalHeight || im.height;
+        if(!w || !h) return done(src);
+        if(src.length <= (opts.targetChars || IMG_TARGET_CHARS) && Math.max(w, h) <= (opts.maxEdge || IMG_MAX_EDGE)){
+          return done(src);
+        }
+        var best = src;
+        var target = opts.targetChars || IMG_TARGET_CHARS;
+        var edges = IMG_EDGES.filter(function(e){ return e <= (opts.maxEdge || IMG_MAX_EDGE); });
+        if(edges.indexOf(opts.maxEdge || IMG_MAX_EDGE) < 0) edges.unshift(opts.maxEdge || IMG_MAX_EDGE);
+        for(var ei = 0; ei < edges.length; ei++){
+          var c = canvasFor(im, edges[ei]);
+          for(var ti = 0; ti < IMG_TYPES.length; ti++){
+            for(var qi = 0; qi < IMG_QUALITIES.length; qi++){
+              var out = encode(c, IMG_TYPES[ti], IMG_QUALITIES[qi]);
+              if(!out) continue;
+              if(out.length < best.length) best = out;
+              if(out.length <= target) return done(out);
+            }
+          }
+        }
+        done(best);
+      };
+      im.onerror = function(){ done(src); };
+      im.src = src;
+    });
+  }
+  window.__hepfOptimizeImageDataUrl = optimizeDataUrl;
+
   function shrink(file){
     return new Promise(function(done){
       var fr = new FileReader();
       fr.onload = function(){
-        var src = fr.result;
-        if(String(src).length < 400000) return done(src);
-        var im = new Image();
-        im.onload = function(){
-          var max = 2000, w = im.naturalWidth, h = im.naturalHeight;
-          var k = Math.min(1, max / Math.max(w, h));
-          var c = document.createElement('canvas');
-          c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
-          c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
-          var alpha = /^data:image\/(png|webp|gif)/i.test(src);
-          var out;
-          try { out = alpha ? c.toDataURL('image/png') : c.toDataURL('image/jpeg', 0.82); }
-          catch(e){ return done(src); }
-          done(out && out.length < String(src).length ? out : src);
-        };
-        im.onerror = function(){ done(src); };
-        im.src = src;
+        optimizeDataUrl(fr.result).then(done);
       };
       fr.onerror = function(){ done(null); };
       fr.readAsDataURL(file);
@@ -7145,7 +7208,7 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
      entries called "1 minute ago" and useless for finding anything.        */
   var AUTO_QUIET = 4000;      /* wait for the typing to stop            */
   var AUTO_MAX   = 45000;     /* but never sit on a change longer than this */
-  var quietT = null, maxT = null, inflight = false, again = false, conflictAt = null;
+  var quietT = null, maxT = null, inflight = false, optimizing = false, again = false, conflictAt = null;
   /* Nothing may be written until the server's state is in hand. Without this
      a failed load — expired token, a 500, a dropped connection — leaves the
      pristine defaults on screen, and the first keystroke autosaves them over
@@ -7189,6 +7252,39 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
   window.__memTouch  = touch;
   window.__memAnchor = anchorAs;
 
+  function needsImageOptimization(img){
+    var src = img && img.getAttribute && img.getAttribute('src');
+    if(!src || src.indexOf('data:image/') !== 0) return false;
+    var tooWide = Math.max(img.naturalWidth || 0, img.naturalHeight || 0) > 2000;
+    return tooWide || src.length > 360000;
+  }
+  function optimizeCurrentImages(){
+    var fn = window.__hepfOptimizeImageDataUrl;
+    if(typeof fn !== 'function') return Promise.resolve({ count: 0, before: 0, after: 0 });
+    var imgs = [].slice.call(document.querySelectorAll('#surface .img img'))
+      .filter(needsImageOptimization);
+    if(!imgs.length) return Promise.resolve({ count: 0, before: 0, after: 0 });
+
+    var done = 0, before = 0, after = 0;
+    return imgs.reduce(function(p, img){
+      return p.then(function(){
+        var src = img.getAttribute('src') || '';
+        before += src.length;
+        return fn(src).then(function(out){
+          out = String(out || src);
+          after += out.length;
+          if(out && out !== src && out.length < src.length){
+            img.setAttribute('src', out);
+            done++;
+          }
+        });
+      });
+    }, Promise.resolve()).then(function(){
+      if(done && window.__wsChrome) window.__wsChrome();
+      return { count: done, before: before, after: after };
+    });
+  }
+
   function doLoad(){
     setSave('busy', 'Loading…');
     return post('load').then(function(r){
@@ -7226,8 +7322,24 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
     clearTimeout(quietT); clearTimeout(maxT); maxT = null;
     /* one request at a time; anything that arrives mid-flight is folded into
        the next one rather than racing it */
-    if(inflight){ again = true; return; }
+    if(inflight || optimizing){ again = true; return; }
 
+    var hasHeavyImages = !!document.querySelector('#surface .img img[src^="data:image/"]');
+    if(hasHeavyImages){
+      optimizing = true;
+      setSave('busy', 'Optimizing…');
+      return optimizeCurrentImages().then(function(opt){
+        optimizing = false;
+        return doSaveNow(quiet, opt);
+      }).catch(function(){
+        optimizing = false;
+        return doSaveNow(quiet, { count: 0, before: 0, after: 0 });
+      });
+    }
+    return doSaveNow(quiet, { count: 0, before: 0, after: 0 });
+  }
+
+  function doSaveNow(quiet, optimized){
     var payload;
     try { payload = collect(); }
     catch(e){
@@ -7240,8 +7352,10 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
     if(size > 4.5 * 1024 * 1024){
       setSave('on', 'Too large');
       say('<b>This document is ' + (size/1048576).toFixed(1) + ' MB</b> — over the 4.5 MB limit, so it '
-        + 'cannot be sent. Nothing is lost: it is all still on screen. Replace a picture with a '
-        + 'smaller file, or remove one, and it will save itself.', 'warn');
+        + 'cannot be sent. The app already tried compressing embedded pictures'
+        + (optimized && optimized.count ? ' and shrank ' + optimized.count + ' of them' : '')
+        + '. Nothing is lost: it is all still on screen. Replace a picture with a smaller file, '
+        + 'or remove one, and it will save itself.', 'warn');
       openMenu();
       keepLocal(payload);        /* so a closed tab is not a lost afternoon */
       clearTimeout(quietT);
@@ -7254,6 +7368,7 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
       baseOn = conflictAt; conflicted = false;
     }
     var label = quiet ? pendingLabel() : (pendingLabel() || 'Saved by hand');
+    if(optimized && optimized.count && !label) label = 'Pictures compressed';
     inflight = true;
     setSave('busy', 'Saving…');
     post('save', { state: payload, anchor: label ? 1 : 0, label: label, baseOn: baseOn })
