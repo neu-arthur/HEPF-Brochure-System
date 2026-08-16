@@ -1743,6 +1743,45 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
   }
   window.__hepfOptimizeImageDataUrl = optimizeDataUrl;
 
+  function dataUrlToBlob(src){
+    var parts = String(src || '').split(',');
+    var type = dataUrlType(src) || 'image/jpeg';
+    var bin = atob(parts[1] || '');
+    var bytes = new Uint8Array(bin.length);
+    for(var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new Blob([bytes], { type: type });
+  }
+  function extFor(type){
+    return type === 'image/avif' ? 'avif' : (type === 'image/webp' ? 'webp' : (type === 'image/png' ? 'png' : 'jpg'));
+  }
+  function uploadAsset(src, name){
+    if(!window.__CRED || String(src || '').indexOf('data:image/') !== 0) return Promise.resolve(src);
+    var blob;
+    try { blob = dataUrlToBlob(src); } catch(e){ return Promise.resolve(src); }
+    return fetch('/api/assets', {
+      method:'POST',
+      headers:{'content-type':'application/json'},
+      body: JSON.stringify({
+        credential: window.__CRED,
+        name: name || ('image.' + extFor(blob.type)),
+        type: blob.type || dataUrlType(src) || 'image/jpeg',
+        size: blob.size
+      })
+    }).then(function(r){
+      if(!r.ok) return null;
+      return r.json();
+    }).then(function(j){
+      if(!j || !j.configured || !j.uploadUrl || !j.publicUrl) return src;
+      return fetch(j.uploadUrl, {
+        method:'PUT',
+        headers:{'content-type': j.type || blob.type || 'application/octet-stream'},
+        body: blob
+      }).then(function(up){
+        return up.ok ? j.publicUrl : src;
+      }).catch(function(){ return src; });
+    }).catch(function(){ return src; });
+  }
+
   function shrink(file){
     return new Promise(function(done){
       var fr = new FileReader();
@@ -1757,6 +1796,8 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
     var f = picker.files[0]; if(!f || !slot) return;
     var target = slot;
     shrink(f).then(function(data){
+      return uploadAsset(data, f.name);
+    }).then(function(data){
       if(!data) return;
       var slot = target;
       slot.innerHTML = '<img src="' + data + '" alt="">';
@@ -6947,7 +6988,7 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
         if(!was || now[0] !== was[0]) t.push([bid, addr, now[0], now[1], now[2]]);
       });
       pg.i.forEach(function(src, n){
-        if(src !== b.i[n] && src && src.indexOf('data:') === 0) i.push([bid, n, src]);
+        if(src !== b.i[n] && src) i.push([bid, n, src]);
       });
     });
     if(t.length || i.length) EDITS[doc] = { t: t, i: i }; else delete EDITS[doc];
