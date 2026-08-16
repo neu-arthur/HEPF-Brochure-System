@@ -1657,16 +1657,14 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
     }
     slot = s; picker.value = ''; picker.click();
   });
-  /* A photograph off a phone can be larger than the whole Netlify request.
-     Before any local image becomes part of the document state, cap it at
-     2000px on the long edge and encode it as a modern web format when the
-     browser can. The save module calls the same optimizer again as a safety
-     pass, so old oversized browser backups can repair themselves too. */
-  var IMG_MAX_EDGE = 2000;
-  var IMG_TARGET_CHARS = 360000;
-  var IMG_EDGES = [2000, 1600, 1200, 900];
-  var IMG_QUALITIES = [0.8, 0.68, 0.56, 0.44, 0.34];
-  var IMG_TYPES = ['image/avif', 'image/webp', 'image/jpeg'];
+  /* Keep uploaded photography print-clean now that R2 stores the bytes, while
+     still making the file browser-friendly before it leaves the tab. The
+     save module keeps its stricter emergency pass for old embedded images. */
+  var IMG_MAX_EDGE = 3840;
+  var IMG_TARGET_CHARS = 2200000;
+  var IMG_EDGES = [3840, 3200, 2560, 2000, 1600];
+  var IMG_QUALITIES = [0.86, 0.8, 0.72, 0.64, 0.54];
+  var IMG_TYPES = ['image/webp', 'image/jpeg'];
 
   function dataUrlType(s){
     var m = /^data:([^;,]+)/i.exec(String(s || ''));
@@ -1714,14 +1712,16 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
       im.onload = function(){
         var w = im.naturalWidth || im.width, h = im.naturalHeight || im.height;
         if(!w || !h) return done(src);
-        if(!opts.force && src.length <= (opts.targetChars || IMG_TARGET_CHARS) && Math.max(w, h) <= (opts.maxEdge || IMG_MAX_EDGE)){
+        var types = opts.types || IMG_TYPES;
+        if(!opts.force && src.length <= (opts.targetChars || IMG_TARGET_CHARS)
+          && Math.max(w, h) <= (opts.maxEdge || IMG_MAX_EDGE)
+          && dataUrlType(src) === types[0]){
           return done(src);
         }
         var best = src;
         var target = opts.targetChars || IMG_TARGET_CHARS;
         var sourceEdges = opts.edges || IMG_EDGES;
         var qualities = opts.qualities || IMG_QUALITIES;
-        var types = opts.types || IMG_TYPES;
         var edges = sourceEdges.filter(function(e){ return e <= (opts.maxEdge || IMG_MAX_EDGE); });
         if(edges.indexOf(opts.maxEdge || IMG_MAX_EDGE) < 0) edges.unshift(opts.maxEdge || IMG_MAX_EDGE);
         for(var ei = 0; ei < edges.length; ei++){
@@ -7321,8 +7321,8 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
   function needsImageOptimization(img){
     var src = img && img.getAttribute && img.getAttribute('src');
     if(!src || src.indexOf('data:image/') !== 0) return false;
-    var tooWide = Math.max(img.naturalWidth || 0, img.naturalHeight || 0) > 2000;
-    return tooWide || src.length > 360000;
+    var tooWide = Math.max(img.naturalWidth || 0, img.naturalHeight || 0) > IMG_MAX_EDGE;
+    return tooWide || src.length > IMG_TARGET_CHARS;
   }
   function needsStoredImageOptimization(src, opts){
     if(!src || src.indexOf('data:image/') !== 0) return false;
