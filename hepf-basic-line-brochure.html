@@ -1714,18 +1714,21 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
       im.onload = function(){
         var w = im.naturalWidth || im.width, h = im.naturalHeight || im.height;
         if(!w || !h) return done(src);
-        if(src.length <= (opts.targetChars || IMG_TARGET_CHARS) && Math.max(w, h) <= (opts.maxEdge || IMG_MAX_EDGE)){
+        if(!opts.force && src.length <= (opts.targetChars || IMG_TARGET_CHARS) && Math.max(w, h) <= (opts.maxEdge || IMG_MAX_EDGE)){
           return done(src);
         }
         var best = src;
         var target = opts.targetChars || IMG_TARGET_CHARS;
-        var edges = IMG_EDGES.filter(function(e){ return e <= (opts.maxEdge || IMG_MAX_EDGE); });
+        var sourceEdges = opts.edges || IMG_EDGES;
+        var qualities = opts.qualities || IMG_QUALITIES;
+        var types = opts.types || IMG_TYPES;
+        var edges = sourceEdges.filter(function(e){ return e <= (opts.maxEdge || IMG_MAX_EDGE); });
         if(edges.indexOf(opts.maxEdge || IMG_MAX_EDGE) < 0) edges.unshift(opts.maxEdge || IMG_MAX_EDGE);
         for(var ei = 0; ei < edges.length; ei++){
           var c = canvasFor(im, edges[ei]);
-          for(var ti = 0; ti < IMG_TYPES.length; ti++){
-            for(var qi = 0; qi < IMG_QUALITIES.length; qi++){
-              var out = encode(c, IMG_TYPES[ti], IMG_QUALITIES[qi]);
+          for(var ti = 0; ti < types.length; ti++){
+            for(var qi = 0; qi < qualities.length; qi++){
+              var out = encode(c, types[ti], qualities[qi]);
               if(!out) continue;
               if(out.length < best.length) best = out;
               if(out.length <= target) return done(out);
@@ -7258,11 +7261,16 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
     var tooWide = Math.max(img.naturalWidth || 0, img.naturalHeight || 0) > 2000;
     return tooWide || src.length > 360000;
   }
-  function optimizeCurrentImages(){
+  function needsStoredImageOptimization(src, opts){
+    if(!src || src.indexOf('data:image/') !== 0) return false;
+    return (opts && opts.force) || src.length > ((opts && opts.targetChars) || 360000);
+  }
+  function optimizeCurrentImages(opts){
+    opts = opts || {};
     var fn = window.__hepfOptimizeImageDataUrl;
     if(typeof fn !== 'function') return Promise.resolve({ count: 0, before: 0, after: 0 });
     var imgs = [].slice.call(document.querySelectorAll('#surface .img img'))
-      .filter(needsImageOptimization);
+      .filter(function(img){ return opts.force || needsImageOptimization(img); });
     if(!imgs.length) return Promise.resolve({ count: 0, before: 0, after: 0 });
 
     var done = 0, before = 0, after = 0;
@@ -7270,7 +7278,7 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
       return p.then(function(){
         var src = img.getAttribute('src') || '';
         before += src.length;
-        return fn(src).then(function(out){
+        return fn(src, opts).then(function(out){
           out = String(out || src);
           after += out.length;
           if(out && out !== src && out.length < src.length){
@@ -7282,6 +7290,49 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
     }, Promise.resolve()).then(function(){
       if(done && window.__wsChrome) window.__wsChrome();
       return { count: done, before: before, after: after };
+    });
+  }
+  function optimizeStoredImages(opts){
+    opts = opts || {};
+    var fn = window.__hepfOptimizeImageDataUrl;
+    if(typeof fn !== 'function') return Promise.resolve({ count: 0, before: 0, after: 0 });
+    var rows = [];
+    Object.keys(EDITS).forEach(function(doc){
+      (EDITS[doc].i || []).forEach(function(r){
+        if(needsStoredImageOptimization(r[2], opts)) rows.push(r);
+      });
+    });
+    if(!rows.length) return Promise.resolve({ count: 0, before: 0, after: 0 });
+
+    var done = 0, before = 0, after = 0;
+    return rows.reduce(function(p, r){
+      return p.then(function(){
+        var src = r[2] || '';
+        before += src.length;
+        return fn(src, opts).then(function(out){
+          out = String(out || src);
+          after += out.length;
+          if(out && out !== src && out.length < src.length){
+            r[2] = out;
+            done++;
+          }
+        });
+      });
+    }, Promise.resolve()).then(function(){
+      return { count: done, before: before, after: after };
+    });
+  }
+  function optimizeAllImages(opts){
+    opts = opts || {};
+    return optimizeCurrentImages(opts).then(function(a){
+      return optimizeStoredImages(opts).then(function(b){
+        return {
+          count: a.count + b.count,
+          before: a.before + b.before,
+          after: a.after + b.after,
+          aggressive: Boolean(opts.force)
+        };
+      });
     });
   }
 
@@ -7328,7 +7379,7 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
     if(hasHeavyImages){
       optimizing = true;
       setSave('busy', 'Optimizing…');
-      return optimizeCurrentImages().then(function(opt){
+      return optimizeAllImages().then(function(opt){
         optimizing = false;
         return doSaveNow(quiet, opt);
       }).catch(function(){
@@ -7350,6 +7401,21 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
     keepLocal(payload);
     var size = JSON.stringify(payload).length;
     if(size > 4.5 * 1024 * 1024){
+      if(!optimized || !optimized.aggressive){
+        setSave('busy', 'Compressing more…');
+        return optimizeAllImages({
+          force: true,
+          targetChars: 180000,
+          maxEdge: 1600,
+          edges: [1600, 1200, 900, 700],
+          qualities: [0.62, 0.5, 0.4, 0.32, 0.25]
+        }).then(function(opt){
+          opt.aggressive = true;
+          return doSaveNow(quiet, opt);
+        }).catch(function(){
+          return doSaveNow(quiet, { count: 0, before: 0, after: 0, aggressive: true });
+        });
+      }
       setSave('on', 'Too large');
       say('<b>This document is ' + (size/1048576).toFixed(1) + ' MB</b> — over the 4.5 MB limit, so it '
         + 'cannot be sent. The app already tried compressing embedded pictures'
