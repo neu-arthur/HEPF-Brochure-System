@@ -1564,10 +1564,12 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
          stamped it back over the renumbering on load. */
       if(el.classList && el.classList.contains('pg')) return false;
 
-      /* A field someone has emptied is still a field. Dropping it made the
-         deletion impossible to record — the old text came back on reload —
-         and shifted every unnamed position after it. */
-      if(!el.textContent.trim() && !(el.getAttribute && el.getAttribute('data-f'))) return false;
+      /* A named field is the authored unit even if Safari/contenteditable has
+         wrapped its text in spans or divs while someone typed. Treating it as
+         a leaf only while its children were BRs made image/crop redraws lose
+         those edits. If named fields ever nest, the inner name wins. */
+      if(el.getAttribute && el.getAttribute('data-f')) return !el.querySelector('[data-f]');
+      if(!el.textContent.trim()) return false;
       return [].slice.call(el.children).every(function(c){ return c.tagName === 'BR'; });
     });
   }
@@ -5010,10 +5012,10 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
       if(el.closest && el.closest('.img')) return false;
       if(el.closest && (el.closest('.ecotog') || el.closest('.ecomark'))) return false;
       if(el.classList.contains('pg')) return false;
-      /* A field someone has emptied is still a field. Dropping it made the
-         deletion impossible to record — the old text came back on reload —
-         and shifted every unnamed position after it. */
-      if(!el.textContent.trim() && !(el.getAttribute && el.getAttribute('data-f'))) return false;
+      /* Named authored fields must keep being captured after Safari mutates
+         their internal contenteditable markup during typing. */
+      if(el.getAttribute && el.getAttribute('data-f')) return !el.querySelector('[data-f]');
+      if(!el.textContent.trim()) return false;
       return [].slice.call(el.children).every(function(c){ return c.tagName === 'BR'; });
     });
   }
@@ -6991,10 +6993,11 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
       if(el.closest && el.closest('.img')) return false;
       if(el.closest && (el.closest('.ecotog') || el.closest('.ecomark'))) return false;
       if(el.classList.contains('pg')) return false;
-      /* A field someone has emptied is still a field. Dropping it made the
-         deletion impossible to record — the old text came back on reload —
-         and shifted every unnamed position after it. */
-      if(!el.textContent.trim() && !(el.getAttribute && el.getAttribute('data-f'))) return false;
+      /* A named authored field must be captured even after contenteditable
+         turns the inside into spans/divs. Otherwise a later image reframe
+         redraws from the template and the typed words vanish. */
+      if(el.getAttribute && el.getAttribute('data-f')) return !el.querySelector('[data-f]');
+      if(!el.textContent.trim()) return false;
       return [].slice.call(el.children).every(function(c){ return c.tagName === 'BR'; });
     });
   }
