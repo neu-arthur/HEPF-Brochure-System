@@ -1665,6 +1665,18 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
   var IMG_EDGES = [3840, 3200, 2560, 2000, 1600];
   var IMG_QUALITIES = [0.86, 0.8, 0.72, 0.64, 0.54];
   var IMG_TYPES = ['image/webp', 'image/jpeg'];
+  /* Formats that keep the alpha channel. JPEG is not one of them — flattening
+     a transparent logo onto white is how "my PNG grew a white background"
+     happens — so a picture with real transparency never becomes a JPEG. PNG
+     is the fallback because every browser can write it; Safari cannot write
+     WebP at all. */
+  var IMG_TYPES_ALPHA = ['image/webp', 'image/png'];
+  var CAN_WEBP = (function(){
+    try{
+      var t = document.createElement('canvas'); t.width = t.height = 2;
+      return t.toDataURL('image/webp').indexOf('data:image/webp') === 0;
+    }catch(e){ return false; }
+  })();
 
   function dataUrlType(s){
     var m = /^data:([^;,]+)/i.exec(String(s || ''));
@@ -1673,6 +1685,24 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
   function supported(out, type){
     return typeof out === 'string' && out.indexOf('data:' + type) === 0;
   }
+  /* Sampled small: a 64px thumbnail says alpha-or-not as reliably as the
+     full frame and getImageData on the full frame is what stalls Safari. */
+  function hasAlpha(im){
+    try{
+      var w = im.naturalWidth || im.width, h = im.naturalHeight || im.height;
+      if(!w || !h) return false;
+      var k = Math.min(1, 64 / Math.max(w, h));
+      var c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(w * k));
+      c.height = Math.max(1, Math.round(h * k));
+      var ctx = c.getContext('2d');
+      if(!ctx) return false;
+      ctx.drawImage(im, 0, 0, c.width, c.height);
+      var d = ctx.getImageData(0, 0, c.width, c.height).data;
+      for(var i = 3; i < d.length; i += 4){ if(d[i] < 250) return true; }
+      return false;
+    }catch(e){ return false; }
+  }
   function canvasFor(im, edge){
     var w = im.naturalWidth || im.width, h = im.naturalHeight || im.height;
     var k = Math.min(1, edge / Math.max(w, h));
@@ -1680,6 +1710,7 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
     c.width = Math.max(1, Math.round(w * k));
     c.height = Math.max(1, Math.round(h * k));
     var ctx = c.getContext('2d');
+    if(!ctx) return null;
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
     if(dataUrlType(im.src) === 'image/jpeg'){
@@ -1694,6 +1725,7 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
       var flat = document.createElement('canvas');
       flat.width = c.width; flat.height = c.height;
       var fctx = flat.getContext('2d');
+      if(!fctx) return '';
       fctx.fillStyle = '#fff';
       fctx.fillRect(0, 0, flat.width, flat.height);
       fctx.drawImage(c, 0, 0);
@@ -1705,36 +1737,61 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
   }
   function optimizeDataUrl(src, opts){
     opts = opts || {};
-    return new Promise(function(done){
+    return new Promise(function(resolve){
       src = String(src || '');
-      if(src.indexOf('data:image/') !== 0) return done(src);
+      if(src.indexOf('data:image/') !== 0) return resolve(src);
+      /* Whatever happens in here, the promise settles. An optimizer that
+         hangs — a canvas the browser refuses to allocate, a decode that
+         never finishes — takes the whole autosave loop down with it:
+         `optimizing` stays true, every later save returns early, the button
+         reads "Unsaved" forever and the work is one closed tab from gone. */
+      var settled = false;
+      function done(v){ if(!settled){ settled = true; resolve(v); } }
+      setTimeout(function(){ done(src); }, 30000);
       var im = new Image();
       im.onload = function(){
-        var w = im.naturalWidth || im.width, h = im.naturalHeight || im.height;
-        if(!w || !h) return done(src);
-        var types = opts.types || IMG_TYPES;
-        if(!opts.force && src.length <= (opts.targetChars || IMG_TARGET_CHARS)
-          && Math.max(w, h) <= (opts.maxEdge || IMG_MAX_EDGE)
-          && dataUrlType(src) === types[0]){
-          return done(src);
-        }
         var best = src;
-        var target = opts.targetChars || IMG_TARGET_CHARS;
-        var sourceEdges = opts.edges || IMG_EDGES;
-        var qualities = opts.qualities || IMG_QUALITIES;
-        var edges = sourceEdges.filter(function(e){ return e <= (opts.maxEdge || IMG_MAX_EDGE); });
-        if(edges.indexOf(opts.maxEdge || IMG_MAX_EDGE) < 0) edges.unshift(opts.maxEdge || IMG_MAX_EDGE);
-        for(var ei = 0; ei < edges.length; ei++){
-          var c = canvasFor(im, edges[ei]);
-          for(var ti = 0; ti < types.length; ti++){
-            for(var qi = 0; qi < qualities.length; qi++){
-              var out = encode(c, types[ti], qualities[qi]);
-              if(!out) continue;
-              if(out.length < best.length) best = out;
-              if(out.length <= target) return done(out);
+        try{
+          var w = im.naturalWidth || im.width, h = im.naturalHeight || im.height;
+          if(!w || !h) return done(src);
+          var srcType = dataUrlType(src);
+          var alpha = (srcType === 'image/png' || srcType === 'image/webp'
+            || srcType === 'image/avif') && hasAlpha(im);
+          var keep = alpha ? IMG_TYPES_ALPHA : IMG_TYPES;
+          var target = opts.targetChars || IMG_TARGET_CHARS;
+          var maxEdge = opts.maxEdge || IMG_MAX_EDGE;
+          /* Already small, already within the edge, already in a format we
+             would have chosen — re-encoding it again is pure quality loss. */
+          if(!opts.force && src.length <= target && Math.max(w, h) <= maxEdge
+            && keep.indexOf(srcType) >= 0){
+            return done(src);
+          }
+          /* Asking Safari for WebP just makes it encode a PNG and throw it
+             away, once per quality step — drop the format it cannot write. */
+          var types = opts.types || keep.filter(function(t){
+            return t !== 'image/webp' || CAN_WEBP;
+          });
+          if(!types.length) types = ['image/png'];
+          var sourceEdges = opts.edges || IMG_EDGES;
+          var qualities = opts.qualities || IMG_QUALITIES;
+          var edges = sourceEdges.filter(function(e){ return e <= maxEdge; });
+          if(edges.indexOf(maxEdge) < 0) edges.unshift(maxEdge);
+          for(var ei = 0; ei < edges.length; ei++){
+            var c = canvasFor(im, edges[ei]);
+            if(!c) continue;
+            for(var ti = 0; ti < types.length; ti++){
+              for(var qi = 0; qi < qualities.length; qi++){
+                var out = encode(c, types[ti], qualities[qi]);
+                if(out){
+                  if(out.length < best.length) best = out;
+                  if(out.length <= target) return done(out);
+                }
+                /* PNG ignores the quality argument — one try is the try. */
+                if(types[ti] === 'image/png') break;
+              }
             }
           }
-        }
+        }catch(e){}
         done(best);
       };
       im.onerror = function(){ done(src); };
@@ -1754,21 +1811,34 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
   function extFor(type){
     return type === 'image/avif' ? 'avif' : (type === 'image/webp' ? 'webp' : (type === 'image/png' ? 'png' : 'jpg'));
   }
-  function uploadAsset(src, name){
-    if(!window.__CRED || String(src || '').indexOf('data:image/') !== 0) return Promise.resolve(src);
-    var blob;
-    try { blob = dataUrlToBlob(src); } catch(e){ return Promise.resolve(src); }
+  function askUpload(blob, name){
     return fetch('/api/assets', {
       method:'POST',
       headers:{'content-type':'application/json'},
       body: JSON.stringify({
         credential: window.__CRED,
         name: name || ('image.' + extFor(blob.type)),
-        type: blob.type || dataUrlType(src) || 'image/jpeg',
+        type: blob.type || 'image/jpeg',
         size: blob.size
       })
+    });
+  }
+  function uploadAsset(src, name){
+    if(!window.__CRED || String(src || '').indexOf('data:image/') !== 0) return Promise.resolve(src);
+    var blob;
+    try { blob = dataUrlToBlob(src); } catch(e){ return Promise.resolve(src); }
+    return askUpload(blob, name).then(function(r){
+      /* An expired sign-in used to fail silently here, and the picture fell
+         back to living inside the save — megabytes back on the payload the
+         hosted path exists to keep small. Renew once and ask again. */
+      if(r.status === 401 && window.__memRenew){
+        return window.__memRenew().then(function(got){
+          return got ? askUpload(blob, name) : r;
+        });
+      }
+      return r;
     }).then(function(r){
-      if(!r.ok) return null;
+      if(!r || !r.ok) return null;
       return r.json();
     }).then(function(j){
       if(!j || !j.configured || !j.uploadUrl || !j.publicUrl) return src;
@@ -7206,6 +7276,10 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
   }
   function takeCred(c){
     cred = c;
+    /* The image-upload module signs with window.__CRED. Renewing only the
+       local copy left it posting the dead token: /api/assets said 401, the
+       fallback quietly embedded the picture, and saves grew huge again. */
+    window.__CRED = c;
     try { sessionStorage.setItem('hepf.cred', c); } catch(e){}
     if(renewing){ var f = renewing; renewing = null; f(true); }
   }
@@ -7220,6 +7294,9 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
       });
     }).catch(function(){ return false; });
   }
+  /* The upload module lives in another closure and has no post() of its
+     own; this is how it asks for a fresh credential after a 401. */
+  window.__memRenew = renew;
 
   function rawPost(action, extra){
     return fetch(API, { method:'POST', headers:{'content-type':'application/json'},
@@ -7307,8 +7384,26 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
     return pending.n > 1 && pending.label !== 'Several changes'
       ? pending.label + ' \u00d7' + pending.n : pending.label;
   }
+  /* The browser copy must not depend on the save pipeline being healthy.
+     It used to be written only on a save attempt — so a conflict that had
+     paused autosave, or a request that never came back, also meant no
+     backup was being written, which is precisely the situation the rescue
+     copy exists for. A timer of its own, and it only writes while there is
+     something unsaved, so a clean save is never shadowed by a stale copy. */
+  var backupT = null;
+  function scheduleBackup(){
+    /* Rides, not resets: steady typing must not keep pushing the write
+       into the future, or half an hour of it is half an hour unbacked. */
+    if(!loaded || backupT) return;
+    backupT = setTimeout(function(){
+      backupT = null;
+      if(!dirty) return;
+      try { keepLocal(collect()); } catch(e){}
+    }, 8000);
+  }
   function touch(){
     dirty = true;
+    scheduleBackup();
     if(!cred || !loaded || conflicted) return;
     setSave('on', 'Unsaved');
     clearTimeout(quietT);

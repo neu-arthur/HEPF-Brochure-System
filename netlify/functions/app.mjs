@@ -13,7 +13,7 @@
 // POST /api/app { credential } -> text/html
 
 import { createDecipheriv } from 'node:crypto';
-import { identify, HEAD } from './lib/identity.mjs';
+import { identify, mintSession, HEAD } from './lib/identity.mjs';
 import { SEALED } from './lib/payload.mjs';
 
 let cached = null;
@@ -49,12 +49,18 @@ export default async (req) => {
     return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: HEAD });
   }
 
-  // Hand the verified token back into the document so the toolbar can sign
-  // its own save and comment calls without a second round trip. A Google ID
-  // token is base64url, so it cannot break out of the string literal.
+  // Hand a credential back into the document so the toolbar can sign its own
+  // save and comment calls without a second round trip. Not the Google token
+  // that opened the gate — that one dies an hour after Google issued it, and
+  // it took every save with it — but a twelve-hour session of our own. It is
+  // also written into sessionStorage so a refresh re-enters with the session
+  // and gets a fresh one, instead of replaying a half-spent Google token.
+  // Both tokens are base64url, so neither can break out of the literal.
+  const session = mintSession(who) || body.credential;
   const shell = doc.replace(
     '<head>',
-    `<head><script>window.__CRED=${JSON.stringify(body.credential)};</script>`,
+    `<head><script>window.__CRED=${JSON.stringify(session)};`
+      + `try{sessionStorage.setItem('hepf.cred',window.__CRED);}catch(e){}</script>`,
   );
 
   return new Response(shell, {
