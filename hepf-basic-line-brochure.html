@@ -1872,10 +1872,16 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
   picker.addEventListener('change', function(){
     var f = picker.files[0]; if(!f || !slot) return;
     var target = slot;
+    /* A picture replace is async: FileReader, canvas encode, then R2 upload.
+       Capture the words before that starts, and again before the slot is
+       written, so a delayed image callback cannot preserve the picture while
+       rolling nearby text back to the last captured diff. */
+    if(window.__memCaptureCurrent) window.__memCaptureCurrent();
     shrink(f).then(function(data){
       return uploadAsset(data, f.name);
     }).then(function(data){
       if(!data) return;
+      if(window.__memCaptureCurrent) window.__memCaptureCurrent();
       var slot = target;
       slot.innerHTML = '<img src="' + data + '" alt="">';
       /* it is not an empty slot any more, whatever it was a moment ago */
@@ -7123,6 +7129,13 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
        this way and none of it was reaching the server. */
     if(loaded && cred) touch();
   };
+  function currentDoc(){
+    return window.__wsDoc ? window.__wsDoc() : 'basic';
+  }
+  window.__memCaptureCurrent = function(){
+    if(restoring) return;
+    capture(currentDoc());
+  };
   /* Duplicating a document has to bring the writing with it. Captured first,
      because what is on screen has not necessarily been recorded yet. */
   /* Edits for documents that are gone are dead weight in every future save. */
@@ -7138,8 +7151,7 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
 
   /* ---------- the full payload ---------- */
   function collect(){
-    var doc = window.__wsDoc ? window.__wsDoc() : 'basic';
-    capture(doc);
+    capture(currentDoc());
     var pal = window.__stPalette ? window.__stPalette.read() : {};
     var lib = window.__wsLibrary ? window.__wsLibrary.read() : null;
     /* A payload is a record of what someone did, not of what happened to be
@@ -7582,6 +7594,7 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
     /* one request at a time; anything that arrives mid-flight is folded into
        the next one rather than racing it */
     if(inflight || optimizing){ again = true; return; }
+    if(window.__memCaptureCurrent) window.__memCaptureCurrent();
 
     var hasHeavyImages = !!document.querySelector('#surface .img img[src^="data:image/"]');
     if(hasHeavyImages){
