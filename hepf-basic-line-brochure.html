@@ -1334,6 +1334,7 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
     <button class="btn pri" id="st-export">Export clean HTML</button>
     <button class="btn" id="st-review">Export review copy</button>
     <button class="btn" id="st-savefile">Save studio file</button>
+    <label class="chk"><input type="checkbox" id="st-emailpdf"><div><b>Email-size PDF</b><i>Compress images before Print / Save as PDF for email attachment.</i></div></label>
     <button class="btn" id="st-print">Print / Save as PDF</button>
     <button class="btn" id="st-reset">Reset palette</button>
     <button class="btn" style="margin-bottom:0" id="st-slots">Slot map</button>
@@ -1922,7 +1923,12 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
   });
 
   /* ---------- output ---------- */
-  document.getElementById('st-print').addEventListener('click', function(){ window.print(); });
+  var emailPdf = document.getElementById('st-emailpdf');
+  var printBtn = document.getElementById('st-print');
+  printBtn.addEventListener('click', function(){
+    if(emailPdf && emailPdf.checked) printEmailPdf();
+    else window.print();
+  });
   document.getElementById('st-reset').addEventListener('click', function(){
     setAll(DEFAULTS);
     root.style.setProperty('--font', DEFAULT_FONT);
@@ -1956,6 +1962,114 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
     a.download = name;
     document.body.appendChild(a); a.click();
     setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  }
+  function printClone(){
+    var c = buildClone();
+    ['#studio','#studio-style','#studio-script','#st-file','#st-modal',
+     '#mem-style','#mem-script','#slots-style','#slots-script','#slots-modal',
+     '#ai-style','#ai-script','#ai','#ai-settings','#acc-modal',
+     '#tb-style','#tb-script','#tbwrap','#libwrap','#cropwrap',
+     '#cmt-pop','#cmt-style','#cmt-script','#saved-comments'].join(',').split(',').forEach(function(sel){
+      var n = c.querySelector(sel); if(n) n.remove();
+    });
+    c.querySelectorAll('script,.cpin,.cropbtn,.ecotog').forEach(function(n){ n.remove(); });
+    c.querySelector('body').classList.remove('hide-ph');
+    c.querySelector('body').classList.remove('cmt-placing');
+    c.querySelector('body').removeAttribute('style');
+    return c;
+  }
+  function waitImage(src){
+    return new Promise(function(done){
+      var im = new Image();
+      im.crossOrigin = 'anonymous';
+      im.onload = function(){ done(im); };
+      im.onerror = function(){ done(null); };
+      setTimeout(function(){ done(null); }, 3500);
+      im.src = src;
+    });
+  }
+  function compressedPrintSrc(src, maxEdge, q){
+    if(!src || src.indexOf('data:image/svg+xml') === 0) return Promise.resolve(src);
+    return waitImage(src).then(function(im){
+      if(!im || !im.naturalWidth || !im.naturalHeight) return src;
+      var k = Math.min(1, maxEdge / Math.max(im.naturalWidth, im.naturalHeight));
+      var w = Math.max(1, Math.round(im.naturalWidth * k));
+      var h = Math.max(1, Math.round(im.naturalHeight * k));
+      var c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      var ctx = c.getContext('2d');
+      if(!ctx) return src;
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      var alpha = false;
+      try { alpha = hasAlpha(im); } catch(e){}
+      if(!alpha){
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, w, h);
+      }
+      try { ctx.drawImage(im, 0, 0, w, h); } catch(e){ return src; }
+      try {
+        return alpha ? c.toDataURL('image/png') : c.toDataURL('image/jpeg', q);
+      } catch(e){ return src; }
+    });
+  }
+  function compressPrintImages(clone){
+    var imgs = [].slice.call(clone.querySelectorAll('.page img[src]'));
+    var maxEdge = imgs.length > 28 ? 1050 : (imgs.length > 16 ? 1250 : 1500);
+    var q = imgs.length > 28 ? 0.58 : (imgs.length > 16 ? 0.64 : 0.70);
+    return imgs.reduce(function(p, img){
+      return p.then(function(){
+        var src = img.getAttribute('src') || '';
+        return compressedPrintSrc(src, maxEdge, q).then(function(out){
+          if(out && out !== src) img.setAttribute('src', out);
+        });
+      });
+    }, Promise.resolve());
+  }
+  function printHtmlClone(clone){
+    var fr = document.createElement('iframe');
+    fr.setAttribute('aria-hidden', 'true');
+    fr.style.position = 'fixed';
+    fr.style.right = '100vw';
+    fr.style.bottom = '100vh';
+    fr.style.width = '1px';
+    fr.style.height = '1px';
+    document.body.appendChild(fr);
+    var done = false;
+    function cleanup(){
+      if(done) return;
+      done = true;
+      setTimeout(function(){ fr.remove(); }, 1000);
+    }
+    fr.onload = function(){
+      setTimeout(function(){
+        try {
+          fr.contentWindow.focus();
+          fr.contentWindow.print();
+          fr.contentWindow.addEventListener('afterprint', cleanup);
+        } catch(e){
+          cleanup();
+          window.print();
+        }
+        setTimeout(cleanup, 120000);
+      }, 250);
+    };
+    fr.srcdoc = '<!DOCTYPE html>\n' + clone.outerHTML;
+  }
+  function printEmailPdf(){
+    var old = printBtn.textContent;
+    printBtn.disabled = true;
+    printBtn.textContent = 'Preparing email PDF…';
+    var c = printClone();
+    compressPrintImages(c).then(function(){
+      printBtn.disabled = false;
+      printBtn.textContent = old;
+      printHtmlClone(c);
+    }).catch(function(){
+      printBtn.disabled = false;
+      printBtn.textContent = old;
+      printHtmlClone(c);
+    });
   }
 
   /* Clean export — strips the studio entirely. This is the client version. */
