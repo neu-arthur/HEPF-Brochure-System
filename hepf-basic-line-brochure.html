@@ -4534,6 +4534,10 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
     });
     return found;
   }
+  function keepWords(){
+    if(window.__memCaptureCurrent) window.__memCaptureCurrent();
+    else if(window.__memCapture) window.__memCapture(doc);
+  }
 
   window.__wsStruct = {
     doc:    function(){ return doc; },
@@ -4541,8 +4545,9 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
     blocks: function(){ return blocksOf(doc).map(function(b, i){
               return { id:b.id, type:b.type, label:blockLabel(doc, b, i) }; }); },
     /* Every operation is the same operation: rewrite the list. */
-    set:    function(list){ setBlocks(doc, list); sync(); },
+    set:    function(list){ keepWords(); setBlocks(doc, list); sync(); },
     add:    function(type, at){
+              keepWords();
               var list = blocksOf(doc).slice();
               var b = { id: freshId(list, type), type: type };
               /* Start from the pinned example. For a document with no model of
@@ -4554,6 +4559,7 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
               note('Page added'); setBlocks(doc, list); sync(); return b.id;
             },
     duplicate: function(id){
+              keepWords();
               var list = blocksOf(doc).slice(), at = -1;
               list.forEach(function(b, i){ if(b.id === id) at = i; });
               if(at < 0) return null;
@@ -4570,11 +4576,13 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
               note('Page duplicated'); setBlocks(doc, list); sync(); return copy.id;
             },
     remove: function(id){
+              keepWords();
               var list = blocksOf(doc).filter(function(b){ return b.id !== id; });
               if(!list.length) return false;
               note('Page removed'); setBlocks(doc, list); sync(); return true;
             },
     move:   function(id, to){
+              keepWords();
               var list = blocksOf(doc).slice(), from = -1;
               list.forEach(function(b, i){ if(b.id === id) from = i; });
               if(from < 0) return false;
@@ -4620,6 +4628,7 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
     /* Toggling a sticker is a change to the page, not to a word on it, so it
        is written to the block and the page is redrawn. */
     eco: function(id, n){
+      keepWords();
       var list = blocksOf(doc).map(function(b){
         if(b.id !== id) return b;
         var e = {};
@@ -4634,6 +4643,7 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
     /* Where a picture sits inside its mask. Written to the block and the page
        redrawn, exactly like the sticker. Passing null clears it. */
     crop: function(id, index, value){
+      keepWords();
       var list = blocksOf(doc).map(function(b){
         if(b.id !== id) return b;
         var c = {};
@@ -4656,7 +4666,7 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
          person has written is in the diff and can be put back on the new
          layout by field name. Then forget this block's baseline: the new
          layout is a different starting point. */
-      if(window.__memCapture) window.__memCapture(doc);
+      keepWords();
       if(window.__memRebase) window.__memRebase(doc, id);
       var list = blocksOf(doc).map(function(b){
         /* A different layout puts the pictures in different places and often
@@ -7086,8 +7096,9 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
     visiblePages().forEach(function(pg){ by[pg.id] = pg.el; });
     (e.t || []).forEach(function(r){
       var pg = by[r[0]]; if(!pg) return;
-      var leaves = leavesIn(pg), el = null;
+      var leaves = leavesIn(pg), el = null, named = false;
       if(typeof r[1] === 'string' && r[1].indexOf('f:') === 0){
+        named = true;
         var want = r[1].slice(2);
         leaves.forEach(function(n){ if(!el && n.getAttribute('data-f') === want) el = n; });
       } else {
@@ -7100,8 +7111,11 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
         if(!el) el = leaves[r[1]];
       }
       /* A saved edit is placed only where it belongs. An old save carries no
-         signature and is trusted, because it predates the guard. */
-      if(el && r[3] && sigOf(el) !== r[3]){ misplaced++; return; }
+         signature and is trusted, because it predates the guard. A named
+         field is also trusted: `data-f` is the cross-layout identity, so
+         rejecting it because the full-bleed version changed tag/class is what
+         made edited text disappear during image-led layout changes. */
+      if(el && !named && r[3] && sigOf(el) !== r[3]){ misplaced++; return; }
       if(el) el.innerHTML = r[2]; else misplaced++;
     });
     (e.i || []).forEach(function(r){
@@ -7971,8 +7985,14 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
       try{ if(window.google && google.accounts) google.accounts.id.disableAutoSelect(); }catch(e){}
       location.reload();
     });
-    /* Typing is a change like any other, it just does not name a version. */
-    document.addEventListener('input', function(){ touch(); }, true);
+    /* Typing must enter the edit model immediately. If it only lives in the
+       contenteditable DOM until the next save, a later image/crop/layout
+       redraw can rebuild from the template and make the words appear to
+       vanish. */
+    document.addEventListener('input', function(e){
+      if(e.target && e.target.isContentEditable) window.__memCaptureCurrent();
+      touch();
+    }, true);
 
     if(!cred){
       /* Opened as a file, or served without the gate — everything still
