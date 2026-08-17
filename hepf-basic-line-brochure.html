@@ -1747,7 +1747,7 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
          reads "Unsaved" forever and the work is one closed tab from gone. */
       var settled = false;
       function done(v){ if(!settled){ settled = true; resolve(v); } }
-      setTimeout(function(){ done(src); }, 30000);
+      setTimeout(function(){ done(src); }, opts.timeoutMs || 30000);
       var im = new Image();
       im.onload = function(){
         var best = src;
@@ -1857,6 +1857,7 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
       }).catch(function(){ return src; });
     }).catch(function(){ return src; });
   }
+  window.__hepfUploadImageDataUrl = uploadAsset;
 
   function shrink(file){
     return new Promise(function(done){
@@ -7434,10 +7435,24 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
     if(!src || src.indexOf('data:image/') !== 0) return false;
     return (opts && opts.force) || src.length > ((opts && opts.targetChars) || 360000);
   }
+  function after(ms, value){
+    return new Promise(function(done){ setTimeout(function(){ done(value); }, ms); });
+  }
+  function optimizeOrHost(src, opts, name){
+    src = String(src || '');
+    var up = window.__hepfUploadImageDataUrl;
+    var fn = window.__hepfOptimizeImageDataUrl;
+    var first = typeof up === 'function'
+      ? Promise.race([up(src, name), after(opts.uploadMs || 12000, src)]).catch(function(){ return src; })
+      : Promise.resolve(src);
+    return first.then(function(out){
+      out = String(out || src);
+      if(out && out !== src && out.indexOf('data:image/') !== 0) return out;
+      return typeof fn === 'function' ? fn(src, opts) : src;
+    });
+  }
   function optimizeCurrentImages(opts){
     opts = opts || {};
-    var fn = window.__hepfOptimizeImageDataUrl;
-    if(typeof fn !== 'function') return Promise.resolve({ count: 0, before: 0, after: 0 });
     var imgs = [].slice.call(document.querySelectorAll('#surface .img img'))
       .filter(function(img){ return opts.force || needsImageOptimization(img); });
     if(!imgs.length) return Promise.resolve({ count: 0, before: 0, after: 0 });
@@ -7447,10 +7462,10 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
       return p.then(function(){
         var src = img.getAttribute('src') || '';
         before += src.length;
-        return fn(src, opts).then(function(out){
+        return optimizeOrHost(src, opts, 'brochure-image').then(function(out){
           out = String(out || src);
           after += out.length;
-          if(out && out !== src && out.length < src.length){
+          if(out && out !== src && (out.length < src.length || out.indexOf('data:image/') !== 0)){
             img.setAttribute('src', out);
             done++;
           }
@@ -7463,8 +7478,6 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
   }
   function optimizeStoredImages(opts){
     opts = opts || {};
-    var fn = window.__hepfOptimizeImageDataUrl;
-    if(typeof fn !== 'function') return Promise.resolve({ count: 0, before: 0, after: 0 });
     var rows = [];
     Object.keys(EDITS).forEach(function(doc){
       (EDITS[doc].i || []).forEach(function(r){
@@ -7478,10 +7491,10 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
       return p.then(function(){
         var src = r[2] || '';
         before += src.length;
-        return fn(src, opts).then(function(out){
+        return optimizeOrHost(src, opts, 'brochure-image').then(function(out){
           out = String(out || src);
           after += out.length;
-          if(out && out !== src && out.length < src.length){
+          if(out && out !== src && (out.length < src.length || out.indexOf('data:image/') !== 0)){
             r[2] = out;
             done++;
           }
@@ -7494,6 +7507,14 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
   function optimizeAllImages(opts){
     opts = opts || {};
     return optimizeCurrentImages(opts).then(function(a){
+      if(!opts.includeStored){
+        return {
+          count: a.count,
+          before: a.before,
+          after: a.after,
+          aggressive: Boolean(opts.force)
+        };
+      }
       return optimizeStoredImages(opts).then(function(b){
         return {
           count: a.count + b.count,
@@ -7569,7 +7590,7 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
       /* If anything in the optimizer's synchronous prologue throws, the
          flag must not stay up — a stuck `optimizing` is a dead save loop. */
       var opt;
-      try { opt = optimizeAllImages(); }
+      try { opt = optimizeAllImages({ includeStored: false, timeoutMs: 8000, uploadMs: 8000 }); }
       catch(e){
         optimizing = false;
         return doSaveNow(quiet, { count: 0, before: 0, after: 0 });
@@ -7599,7 +7620,10 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
       if(!optimized || !optimized.aggressive){
         setSave('busy', 'Compressing more…');
         return optimizeAllImages({
+          includeStored: true,
           force: true,
+          timeoutMs: 12000,
+          uploadMs: 12000,
           targetChars: 180000,
           maxEdge: 1600,
           edges: [1600, 1200, 900, 700],
