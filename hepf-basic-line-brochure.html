@@ -1988,43 +1988,112 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
       im.src = src;
     });
   }
-  function compressedPrintSrc(src, maxEdge, q){
+  function printDataSize(src){
+    src = String(src || '');
+    if(src.indexOf('data:') !== 0) return 0;
+    var comma = src.indexOf(',');
+    if(comma < 0) return src.length;
+    var data = src.slice(comma + 1);
+    return src.slice(0, comma).indexOf(';base64') >= 0
+      ? Math.round(data.length * 0.75)
+      : data.length;
+  }
+  function uniquePrintNumbers(list){
+    var seen = {};
+    return list.map(function(n){ return Math.max(1, Math.round(n)); })
+      .filter(function(n){
+        if(seen[n]) return false;
+        seen[n] = true;
+        return true;
+      });
+  }
+  function printCanvasFor(im, edge, flatten){
+    var k = Math.min(1, edge / Math.max(im.naturalWidth, im.naturalHeight));
+    var w = Math.max(1, Math.round(im.naturalWidth * k));
+    var h = Math.max(1, Math.round(im.naturalHeight * k));
+    var c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    var ctx = c.getContext('2d');
+    if(!ctx) return null;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    if(flatten){
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, w, h);
+    }
+    try { ctx.drawImage(im, 0, 0, w, h); } catch(e){ return null; }
+    return c;
+  }
+  function compressedPrintSrc(src, plan){
     if(!src || src.indexOf('data:image/svg+xml') === 0) return Promise.resolve(src);
     return waitImage(src).then(function(im){
       if(!im || !im.naturalWidth || !im.naturalHeight) return src;
-      var k = Math.min(1, maxEdge / Math.max(im.naturalWidth, im.naturalHeight));
-      var w = Math.max(1, Math.round(im.naturalWidth * k));
-      var h = Math.max(1, Math.round(im.naturalHeight * k));
-      var c = document.createElement('canvas');
-      c.width = w; c.height = h;
-      var ctx = c.getContext('2d');
-      if(!ctx) return src;
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
       var alpha = false;
       try { alpha = hasAlpha(im); } catch(e){}
-      if(!alpha){
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(0, 0, w, h);
+      var srcSize = printDataSize(src) || src.length;
+      var target = plan.targetChars || 400000;
+      var best = src;
+      var bestLen = printDataSize(src) ? src.length : Infinity;
+      var edges = uniquePrintNumbers([
+        plan.maxEdge,
+        plan.maxEdge * 0.84,
+        plan.maxEdge * 0.68,
+        plan.maxEdge * 0.52,
+        560,
+        440
+      ]);
+      var qualities = [plan.q, 0.34, 0.28, 0.22, 0.16];
+
+      for(var ei = 0; ei < edges.length; ei++){
+        var c = printCanvasFor(im, edges[ei], true);
+        if(!c) continue;
+        if(alpha && srcSize < 220000 && Math.max(im.naturalWidth, im.naturalHeight) <= 900){
+          var pc = printCanvasFor(im, edges[ei], false) || c;
+          var png = encode(pc, 'image/png');
+          if(png && png.length < bestLen){
+            best = png; bestLen = png.length;
+            if(bestLen <= target) return best;
+          }
+        }
+        for(var qi = 0; qi < qualities.length; qi++){
+          var jpg = encode(c, 'image/jpeg', qualities[qi]);
+          if(jpg && jpg.length < bestLen){
+            best = jpg; bestLen = jpg.length;
+            if(bestLen <= target) return best;
+          }
+        }
       }
-      try { ctx.drawImage(im, 0, 0, w, h); } catch(e){ return src; }
-      try {
-        return alpha ? c.toDataURL('image/png') : c.toDataURL('image/jpeg', q);
-      } catch(e){ return src; }
+      return best;
     });
   }
-  function compressPrintImages(clone){
+  function emailPrintPlan(count, tighten){
+    var many = count > 28, medium = count > 16;
+    var baseEdge = many ? 720 : (medium ? 840 : 1040);
+    var baseQ = many ? 0.34 : (medium ? 0.38 : 0.44);
+    var per = many ? 330000 : (medium ? 470000 : 760000);
+    if(tighten){
+      baseEdge = Math.round(baseEdge * 0.72);
+      baseQ = Math.max(0.16, baseQ - 0.12);
+      per = Math.round(per * 0.65);
+    }
+    return { maxEdge: baseEdge, q: baseQ, targetChars: per };
+  }
+  function compressPrintImages(clone, tighten){
     var imgs = [].slice.call(clone.querySelectorAll('.page img[src]'));
-    var maxEdge = imgs.length > 28 ? 1050 : (imgs.length > 16 ? 1250 : 1500);
-    var q = imgs.length > 28 ? 0.58 : (imgs.length > 16 ? 0.64 : 0.70);
+    var plan = emailPrintPlan(imgs.length, tighten);
     return imgs.reduce(function(p, img){
       return p.then(function(){
         var src = img.getAttribute('src') || '';
-        return compressedPrintSrc(src, maxEdge, q).then(function(out){
+        return compressedPrintSrc(src, plan).then(function(out){
           if(out && out !== src) img.setAttribute('src', out);
         });
       });
     }, Promise.resolve());
+  }
+  function printImagePayloadSize(clone){
+    return [].slice.call(clone.querySelectorAll('.page img[src]')).reduce(function(sum, img){
+      return sum + printDataSize(img.getAttribute('src') || '');
+    }, 0);
   }
   function printHtmlClone(clone){
     var fr = document.createElement('iframe');
@@ -2062,6 +2131,8 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
     printBtn.textContent = 'Preparing email PDF…';
     var c = printClone();
     compressPrintImages(c).then(function(){
+      if(printImagePayloadSize(c) > 14 * 1024 * 1024) return compressPrintImages(c, true);
+    }).then(function(){
       printBtn.disabled = false;
       printBtn.textContent = old;
       printHtmlClone(c);
