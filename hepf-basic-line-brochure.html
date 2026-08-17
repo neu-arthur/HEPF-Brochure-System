@@ -2067,6 +2067,8 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
     });
   }
   function emailPrintPlan(count, tighten){
+    /* Email PDFs need a harder cap than the normal uploaded-image optimizer:
+       the browser's PDF writer expands some images again while embedding. */
     var many = count > 28, medium = count > 16;
     var baseEdge = many ? 720 : (medium ? 840 : 1040);
     var baseQ = many ? 0.34 : (medium ? 0.38 : 0.44);
