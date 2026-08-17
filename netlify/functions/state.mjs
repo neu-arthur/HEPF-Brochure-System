@@ -141,9 +141,12 @@ export default async (req) => {
     /* Two people, one document. A tab that has been open all day holds a
        stale copy; letting it write would erase whatever happened in between.
        The client sends the save it started from and gets a 409 if that is no
-       longer the current one. */
+       longer the current one. A save that names no ancestor at all is held to
+       the same standard: the only client state with a null baseOn is one
+       whose load never succeeded, and what that would publish is the shipped
+       defaults over everyone's work. */
     const current = (await store.get(KEY, { type: 'json' })) || null;
-    if (body.baseOn && current?.savedAt && current.savedAt !== body.baseOn) {
+    if (current?.savedAt && current.savedAt !== body.baseOn) {
       return json({ error: 'someone else saved first', conflict: true,
                     savedAt: current.savedAt, savedBy: current.savedBy }, 409);
     }

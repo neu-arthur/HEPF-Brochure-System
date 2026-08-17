@@ -1756,7 +1756,8 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
           if(!w || !h) return done(src);
           var srcType = dataUrlType(src);
           var alpha = (srcType === 'image/png' || srcType === 'image/webp'
-            || srcType === 'image/avif') && hasAlpha(im);
+            || srcType === 'image/avif' || srcType === 'image/gif'
+            || srcType === 'image/svg+xml') && hasAlpha(im);
           var keep = alpha ? IMG_TYPES_ALPHA : IMG_TYPES;
           var target = opts.targetChars || IMG_TARGET_CHARS;
           var maxEdge = opts.maxEdge || IMG_MAX_EDGE;
@@ -1799,6 +1800,11 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
     });
   }
   window.__hepfOptimizeImageDataUrl = optimizeDataUrl;
+  /* The save module lives in another closure. It used to read IMG_MAX_EDGE
+     and IMG_TARGET_CHARS as bare names — a ReferenceError that fired on the
+     first save of any document with an embedded picture, and wedged the
+     save loop shut for good. Published, like the optimizer above. */
+  window.__hepfImgLimits = { maxEdge: IMG_MAX_EDGE, targetChars: IMG_TARGET_CHARS };
 
   function dataUrlToBlob(src){
     var parts = String(src || '').split(',');
@@ -7416,8 +7422,13 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
   function needsImageOptimization(img){
     var src = img && img.getAttribute && img.getAttribute('src');
     if(!src || src.indexOf('data:image/') !== 0) return false;
-    var tooWide = Math.max(img.naturalWidth || 0, img.naturalHeight || 0) > IMG_MAX_EDGE;
-    return tooWide || src.length > IMG_TARGET_CHARS;
+    /* Published by the studio script. Reading its closure's variables by
+       bare name threw here — synchronously, after `optimizing` was already
+       true and before any .catch existed — so one embedded picture froze
+       every save after it at "Unsaved". */
+    var lim = window.__hepfImgLimits || { maxEdge: 3840, targetChars: 2200000 };
+    var tooWide = Math.max(img.naturalWidth || 0, img.naturalHeight || 0) > lim.maxEdge;
+    return tooWide || src.length > lim.targetChars;
   }
   function needsStoredImageOptimization(src, opts){
     if(!src || src.indexOf('data:image/') !== 0) return false;
@@ -7504,6 +7515,9 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
         setSave('on', 'Not loaded');
         say('<b>' + (r.body.error || 'could not load') + '</b><br>Saving is held until this succeeds, '
           + 'so nothing can overwrite the shared version. Press <b>Reload last save</b> to try again.', 'warn');
+        /* A shut gate nobody can see reads as "the app deleted my work" —
+           what is on screen is the shipped defaults, not the shared save. */
+        openMenu();
         return;
       }
       restore(r.body.state);
@@ -7525,10 +7539,25 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
       setSave('on', 'Not loaded');
       say('<b>Network error</b><br>Saving is held until the last save can be read, so nothing can '
         + 'overwrite it. Press <b>Reload last save</b> to try again.', 'warn');
+      openMenu();
     });
   }
   function doSave(quiet){
     clearTimeout(quietT); clearTimeout(maxT); maxT = null;
+    /* The load gate, enforced where the write actually happens. touch()
+       already refuses to schedule autosaves before the server's state is in
+       hand, but the Save button called straight through — after a failed
+       load that press would publish the pristine defaults over everyone's
+       work, with baseOn still null so not even the conflict check stood in
+       the way. */
+    if(!loaded){
+      setSave('on', 'Not loaded');
+      say('<b>The last save has not been loaded</b>, so saving is blocked — '
+        + 'publishing now would overwrite the shared version with what is on '
+        + 'this screen. Press <b>Reload last save</b> first.', 'warn');
+      openMenu();
+      return;
+    }
     /* one request at a time; anything that arrives mid-flight is folded into
        the next one rather than racing it */
     if(inflight || optimizing){ again = true; return; }
@@ -7537,9 +7566,17 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
     if(hasHeavyImages){
       optimizing = true;
       setSave('busy', 'Optimizing…');
-      return optimizeAllImages().then(function(opt){
+      /* If anything in the optimizer's synchronous prologue throws, the
+         flag must not stay up — a stuck `optimizing` is a dead save loop. */
+      var opt;
+      try { opt = optimizeAllImages(); }
+      catch(e){
         optimizing = false;
-        return doSaveNow(quiet, opt);
+        return doSaveNow(quiet, { count: 0, before: 0, after: 0 });
+      }
+      return opt.then(function(o){
+        optimizing = false;
+        return doSaveNow(quiet, o);
       }).catch(function(){
         optimizing = false;
         return doSaveNow(quiet, { count: 0, before: 0, after: 0 });

@@ -79,6 +79,7 @@ export function mintSession(who) {
   const header = b64u(JSON.stringify({ alg: 'HS256', typ: 'hepf-session' }));
   const payload = b64u(JSON.stringify({
     email: who.email, name: who.name, picture: who.picture,
+    given_name: who.given_name || '',
     iat: now, exp: now + SESSION_TTL,
   }));
   return `${header}.${payload}.${sign(key, `${header}.${payload}`)}`;
@@ -123,7 +124,8 @@ export async function identify(credential) {
     if (!allowed.includes(email)) {
       return { error: `${email} is not on the access list for this site`, status: 403 };
     }
-    return { email, name: session.payload.name || email, picture: session.payload.picture || '' };
+    return { email, name: session.payload.name || email, picture: session.payload.picture || '',
+             given_name: session.payload.given_name || '' };
   }
 
   let payload;
@@ -149,5 +151,6 @@ export async function identify(credential) {
     return { error: `${email} is not on the access list for this site`, status: 403 };
   }
 
-  return { email, name: payload.name || email, picture: payload.picture || '' };
+  return { email, name: payload.name || email, picture: payload.picture || '',
+           given_name: payload.given_name || '' };
 }
