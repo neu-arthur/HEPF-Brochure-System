@@ -230,8 +230,6 @@ p{font-size:9.2pt; line-height:1.62; color:#33363C}
    Colour is inherited from `fill` — set per placement.            */
 .logo{display:block; width:32mm; height:auto; fill:var(--onhero)}
 .logo--sm{width:26mm}
-.page.logo-invert .brandbar .logo,
-.page.logo-invert .cv2top .logo{fill:var(--ink)}
 .brandbar .small{color:rgba(255,255,255,.6); color:color-mix(in srgb, var(--onhero) 60%, transparent); letter-spacing:.16em; text-transform:uppercase; font-size:7pt; font-weight:700}
 
 .cover .body{padding:14mm 16mm 0 16mm; flex:1; display:flex; flex-direction:column}
@@ -503,6 +501,8 @@ td.n{font-variant-numeric:tabular-nums}
 .page.cover2 .cv2top > *,
 .page.cover2 .cv2body > *{pointer-events:auto}
 .page.cover2 .cv2top .logo{width:26mm; fill:var(--onhero); display:block}
+.page.cover.logo-invert .brandbar .logo,
+.page.cover2.logo-invert .cv2top .logo{fill:var(--ink)}
 .page.cover2 .cv2top .small{
   font-size:7pt; letter-spacing:.16em; text-transform:uppercase; font-weight:700;
   color:color-mix(in srgb, var(--onhero) 60%, transparent);
@@ -6311,6 +6311,7 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
   }
   .logowrap:hover .logotog{opacity:1}
   .logotog:hover{border-color:var(--accent); color:var(--accent)}
+  .page.logo-invert .logotog{border-color:var(--accent); color:var(--accent)}
   .logotog::before{
     content:''; display:block; width:10px; height:10px; margin:5px;
     border:1px solid currentColor; border-radius:50%;
