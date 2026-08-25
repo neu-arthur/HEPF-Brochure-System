@@ -568,8 +568,8 @@ td.n{font-variant-numeric:tabular-nums}
 body.hide-ph .ecomark{opacity:1}
 .linespage .pad{position:relative}
 .ecoallmark{
-  position:absolute; top:24mm; right:16mm; z-index:4; display:inline-flex; align-items:center; gap:2.4mm;
-  background:var(--eco); color:#fff; border-radius:999px; padding:2.7mm 6mm 2.7mm 4.5mm;
+  position:absolute; top:24mm; right:16mm; z-index:4; display:inline-flex; align-items:center; justify-content:center;
+  background:var(--eco); color:#fff; border-radius:999px; padding:3.2mm;
   font-size:13.8pt; font-weight:700; letter-spacing:.08em; line-height:1; text-transform:uppercase;
   box-shadow:0 3px 12px rgba(0,0,0,.16);
 }
@@ -3879,7 +3879,7 @@ function ecoAllMark(d){
   var on = !!d.__ecoAll;
   return (on ? '<span class="ecoallmark"><svg viewBox="0 0 24 24" aria-hidden="true">'
       + '<path d="M20 4c0 9-5.5 14-12 14-1.2 0-2.3-.2-3.3-.5C6 12 11 8 17 7c-5 .6-9.4 3.6-11.6 8.3'
-      + 'C4.5 13.9 4 12 4 10 4 6.7 6.7 4 10 4h10z"/></svg>All Eco</span>' : '')
+      + 'C4.5 13.9 4 12 4 10 4 6.7 6.7 4 10 4h10z"/></svg></span>' : '')
     + '<button type="button" class="ecoalltog' + (on ? ' on' : '') + '" data-eco-all="1"'
     + ' title="' + (on ? 'Remove the all eco sticker' : 'Add the all eco sticker') + '">'
     + (on ? '&times;' : 'Eco all') + '</button>';
@@ -6732,23 +6732,6 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
       f.appendChild(bar);
       addLogoToggles(f, id);
 
-      /* The eco marks are part of the page, but the control that toggles them
-         is chrome: wired here so it never enters the export or the diff. */
-      [].slice.call(f.querySelectorAll('.ecotog')).forEach(function(t){
-        t.addEventListener('click', function(e){
-          if(e.__hepfChromeHandled) return;
-          e.stopPropagation(); e.preventDefault();
-          S().eco(id, t.getAttribute('data-eco'));
-        });
-      });
-      [].slice.call(f.querySelectorAll('.ecoalltog')).forEach(function(t){
-        t.addEventListener('click', function(e){
-          if(e.__hepfChromeHandled) return;
-          e.stopPropagation(); e.preventDefault();
-          S().ecoAll(id);
-        });
-      });
-
       /* One on each side of every page, so adding is never more than a click
          away from where you want the page to land. */
       [['before', i], ['after', i + 1]].forEach(function(pair){
@@ -6810,11 +6793,6 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
       btn.className = 'logotog';
       btn.title = 'Invert logo colour';
       btn.setAttribute('aria-label', 'Invert logo colour');
-      btn.addEventListener('click', function(e){
-        if(e.__hepfChromeHandled) return;
-        e.stopPropagation(); e.preventDefault();
-        S().logo(id);
-      });
       wrap.appendChild(btn);
     });
   }
