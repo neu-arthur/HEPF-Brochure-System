@@ -566,6 +566,14 @@ td.n{font-variant-numeric:tabular-nums}
 }
 .ecomark svg{width:2.6mm; height:2.6mm; fill:currentColor; display:block}
 body.hide-ph .ecomark{opacity:1}
+.linespage .pad{position:relative}
+.ecoallmark{
+  position:absolute; top:68mm; right:16mm; z-index:4; display:inline-flex; align-items:center; gap:1.6mm;
+  background:var(--eco); color:#fff; border-radius:999px; padding:1.8mm 4mm 1.8mm 3mm;
+  font-size:9.2pt; font-weight:700; letter-spacing:.08em; line-height:1; text-transform:uppercase;
+  box-shadow:0 3px 12px rgba(0,0,0,.16);
+}
+.ecoallmark svg{width:4.2mm; height:4.2mm; fill:currentColor; display:block}
 
 /* seven, eight, nine and ten: a small picture beside the words */
 .linesc{
@@ -1562,7 +1570,7 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
       if(el instanceof SVGElement) return false;
       if(el.classList.contains('img')) return false;
       if(el.closest('.img')) return false;
-      if(el.closest && (el.closest('.ecotog') || el.closest('.ecomark'))) return false;
+      if(el.closest && (el.closest('.ecotog') || el.closest('.ecoalltog') || el.closest('.ecomark'))) return false;
       /* The printed page number is derived from where the page sits, so it is
          not authored text: not editable, not diffable, not addressable. It
          used to be a leaf, which meant a saved edit carried an old number and
@@ -1944,7 +1952,7 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
   /* Shared: clone the document, normalise editing state, bake the palette. */
   function buildClone(){
     var c = document.documentElement.cloneNode(true);
-    c.querySelectorAll('.ecotog,.cropbtn,.logotog').forEach(function(n){ n.remove(); });
+    c.querySelectorAll('.ecotog,.ecoalltog,.cropbtn,.logotog').forEach(function(n){ n.remove(); });
     c.querySelectorAll('.logowrap').forEach(function(w){
       while(w.firstChild) w.parentNode.insertBefore(w.firstChild, w);
       w.remove();
@@ -1980,7 +1988,7 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
      '#cmt-pop','#cmt-style','#cmt-script','#saved-comments'].join(',').split(',').forEach(function(sel){
       var n = c.querySelector(sel); if(n) n.remove();
     });
-    c.querySelectorAll('script,.cpin,.cropbtn,.ecotog,.logotog').forEach(function(n){ n.remove(); });
+    c.querySelectorAll('script,.cpin,.cropbtn,.ecotog,.ecoalltog,.logotog').forEach(function(n){ n.remove(); });
     c.querySelector('body').classList.remove('hide-ph');
     c.querySelector('body').classList.remove('cmt-placing');
     c.querySelector('body').removeAttribute('style');
@@ -3866,6 +3874,16 @@ function ecoSlot(d, i, img, label){
     + '</div>';
 }
 
+function ecoAllMark(d){
+  var on = !!d.__ecoAll;
+  return (on ? '<span class="ecoallmark"><svg viewBox="0 0 24 24" aria-hidden="true">'
+      + '<path d="M20 4c0 9-5.5 14-12 14-1.2 0-2.3-.2-3.3-.5C6 12 11 8 17 7c-5 .6-9.4 3.6-11.6 8.3'
+      + 'C4.5 13.9 4 12 4 10 4 6.7 6.7 4 10 4h10z"/></svg>All Eco</span>' : '')
+    + '<button type="button" class="ecoalltog' + (on ? ' on' : '') + '" data-eco-all="1"'
+    + ' title="' + (on ? 'Remove the all eco sticker' : 'Add the all eco sticker') + '">'
+    + (on ? '&times;' : 'Eco all') + '</button>';
+}
+
 function pageLinesN(d, n){
   var items = linesFor(d, n);
   var chips = ((d.idea && d.idea.chips) || []).map(function(c, i){
@@ -3921,10 +3939,11 @@ function pageLinesN(d, n){
     ? 'Not every line<br>belongs here.'
     : (n >= 9 ? 'Every line,<br>and where each one lands.' : 'The lines<br>that fit this sector.');
 
-  return '<section class="page"><div class="pad">'
+  return '<section class="page linespage"><div class="pad">'
    + '<span class="eyebrow" data-f="eyebrow">Applicable Lines</span>'
    + '<h2 style="margin-top:4mm; max-width:140mm" data-f="head">' + head + '</h2>'
    + '<p class="lede" style="margin-top:4mm; max-width:152mm" data-f="lede">' + (d.linesLede || '') + '</p>'
+   + ecoAllMark(d)
    + body + tail
    + '</div><div class="grow"></div>' + foot(d, 'Applicable Lines', 4) + '</section>';
 }
@@ -4037,6 +4056,7 @@ function renderBlock(model, block){
   /* Sticker state belongs to the block, not to the document's content, so it
      travels with the page and rides the same save as the page order. */
   d.__eco = block.eco || null;
+  d.__ecoAll = !!block.ecoAll;
   try {
     return applyCrops(t.fn(d), block.crop);
   } catch(e){
@@ -4214,7 +4234,7 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
     var def = defaultBlocks(id);
     var same = def.length === list.length && def.every(function(b, i){
       return b.id === list[i].id && b.type === list[i].type
-          && !list[i].eco && !list[i].crop && !list[i].logo && !list[i].src;
+          && !list[i].eco && !list[i].ecoAll && !list[i].crop && !list[i].logo && !list[i].src;
     });
     /* Only store a list that differs from the shipped one, so a save stays a
        record of what someone changed rather than a copy of the defaults. */
@@ -4774,7 +4794,7 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
               if(at < 0) return null;
               var src = list[at];
               var copy = { id: freshId(list, src.type), type: src.type, src: src.src,
-                           eco: src.eco, crop: src.crop, logo: src.logo };
+                           eco: src.eco, ecoAll: src.ecoAll, crop: src.crop, logo: src.logo };
               if(src.type === 'static'){
                 /* A copied hand-set page needs its markup carried across —
                    there is no template to re-render it from. */
@@ -4843,11 +4863,21 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
         var e = {};
         for(var k in (b.eco || {})) e[k] = b.eco[k];
         if(e[n]) delete e[n]; else e[n] = 1;
-        var out = { id:b.id, type:b.type, src:b.src, crop:b.crop, logo:b.logo };
+        var out = { id:b.id, type:b.type, src:b.src, ecoAll:b.ecoAll, crop:b.crop, logo:b.logo };
         if(Object.keys(e).length) out.eco = e;
         return out;
       });
       note('Eco mark changed'); setBlocks(doc, list); sync(); return true;
+    },
+    ecoAll: function(id){
+      keepWords();
+      var list = blocksOf(doc).map(function(b){
+        if(b.id !== id) return b;
+        var out = { id:b.id, type:b.type, src:b.src, eco:b.eco, crop:b.crop, logo:b.logo };
+        if(!b.ecoAll) out.ecoAll = 1;
+        return out;
+      });
+      note('All eco mark changed'); setBlocks(doc, list); sync(); return true;
     },
     /* Where a picture sits inside its mask. Written to the block and the page
        redrawn, exactly like the sticker. Passing null clears it. */
@@ -4858,7 +4888,7 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
         var c = {};
         for(var k in (b.crop || {})) c[k] = b.crop[k];
         if(value) c[index] = value; else delete c[index];
-        var out = { id:b.id, type:b.type, src:b.src, eco:b.eco, logo:b.logo };
+        var out = { id:b.id, type:b.type, src:b.src, eco:b.eco, ecoAll:b.ecoAll, logo:b.logo };
         if(Object.keys(c).length) out.crop = c;
         return out;
       });
@@ -4873,7 +4903,7 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
       keepWords();
       var list = blocksOf(doc).map(function(b){
         if(b.id !== id) return b;
-        var out = { id:b.id, type:b.type, src:b.src, eco:b.eco, crop:b.crop };
+        var out = { id:b.id, type:b.type, src:b.src, eco:b.eco, ecoAll:b.ecoAll, crop:b.crop };
         if(b.logo !== 'invert') out.logo = 'invert';
         return out;
       });
@@ -4891,7 +4921,7 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
         /* A different layout puts the pictures in different places and often
            a different number of them, so a framing set for slot 2 of one is
            meaningless on the next. The copy carries over; the crop does not. */
-        return b.id === id ? { id:b.id, type:type, src:b.src, eco:b.eco, logo:b.logo } : b;
+        return b.id === id ? { id:b.id, type:type, src:b.src, eco:b.eco, ecoAll:b.ecoAll, logo:b.logo } : b;
       });
       note('Layout changed'); setBlocks(doc, list); sync(); return true;
     }
@@ -5227,7 +5257,7 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
       if(el instanceof SVGElement) return false;
       if(el.classList && el.classList.contains('img')) return false;
       if(el.closest && el.closest('.img')) return false;
-      if(el.closest && (el.closest('.ecotog') || el.closest('.ecomark'))) return false;
+      if(el.closest && (el.closest('.ecotog') || el.closest('.ecoalltog') || el.closest('.ecomark'))) return false;
       if(el.classList.contains('pg')) return false;
       /* Named authored fields must keep being captured after Safari mutates
          their internal contenteditable markup during typing. */
@@ -6299,6 +6329,16 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
   }
   .ecowrap:hover .ecotog{opacity:1}
   .ecotog:hover{border-color:var(--eco); color:var(--eco)}
+  .ecoalltog{
+    position:absolute; top:64mm; right:16mm; z-index:36; min-width:58px; height:24px; padding:0 9px;
+    border:1px solid rgba(0,0,0,.22); background:rgba(255,255,255,.94); color:#2B2D31;
+    border-radius:999px; cursor:pointer; opacity:0; transition:opacity .12s;
+    font:700 11px/22px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    transform:scale(var(--pinz,1)); transform-origin:100% 0;
+    box-shadow:0 1px 4px rgba(0,0,0,.24);
+  }
+  .linespage:hover .ecoalltog,.ecoalltog.on{opacity:1}
+  .ecoalltog:hover,.ecoalltog.on{border-color:var(--eco); color:var(--eco)}
   .logowrap{position:relative; display:inline-block; line-height:0}
   .logowrap .logo{display:block}
   .logotog{
@@ -6317,7 +6357,7 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
     border:1px solid currentColor; border-radius:50%;
     background:linear-gradient(90deg,currentColor 0 50%,transparent 50% 100%);
   }
-  @media print{ .ecotog,.logotog{display:none !important} }
+  @media print{ .ecotog,.ecoalltog,.logotog{display:none !important} }
 
   /* Insert points sit on the page edge and are always there, so nobody has to
      discover them by hovering in the right place. */
@@ -6660,6 +6700,12 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
           S().eco(id, t.getAttribute('data-eco'));
         });
       });
+      [].slice.call(f.querySelectorAll('.ecoalltog')).forEach(function(t){
+        t.addEventListener('click', function(e){
+          e.stopPropagation(); e.preventDefault();
+          S().ecoAll(id);
+        });
+      });
 
       /* One on each side of every page, so adding is never more than a click
          away from where you want the page to land. */
@@ -6788,7 +6834,7 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
     var page = liveSlot.closest('.page');
     if(!page) return;
     var clone = page.cloneNode(true);
-    [].slice.call(clone.querySelectorAll('.cropbtn,.ecotog,.cpin')).forEach(function(n){ n.remove(); });
+    [].slice.call(clone.querySelectorAll('.cropbtn,.ecotog,.ecoalltog,.cpin')).forEach(function(n){ n.remove(); });
     [].slice.call(clone.querySelectorAll('[contenteditable]')).forEach(function(n){
       n.removeAttribute('contenteditable'); n.classList.remove('is-edit');
     });
@@ -7246,7 +7292,7 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
       if(el instanceof SVGElement) return false;
       if(el.classList && el.classList.contains('img')) return false;
       if(el.closest && el.closest('.img')) return false;
-      if(el.closest && (el.closest('.ecotog') || el.closest('.ecomark'))) return false;
+      if(el.closest && (el.closest('.ecotog') || el.closest('.ecoalltog') || el.closest('.ecomark'))) return false;
       if(el.classList.contains('pg')) return false;
       /* A named authored field must be captured even after contenteditable
          turns the inside into spans/divs. Otherwise a later image reframe
