@@ -721,12 +721,12 @@ thead th,
 
 /* ---------- 3. Big picture ---------- */
 .page.bleed{background:#fff}
-.bleed .btop{height:112mm; flex:none}
+.bleed .btop{height:96mm; margin:16mm 16mm 0; flex:none}
 .bleed .btop .img{width:100%; height:100%; border:0}
 .bleed .bbody{flex:1; display:grid; grid-template-columns:1fr 82mm; min-height:0}
 /* the right margin clears the callout, which hangs back over this column */
 .bleed .bbody > .txt{padding:13mm 26mm 8mm 16mm; display:flex; flex-direction:column}
-.bleed .bbody > .pic{position:relative; min-width:0; display:flex}
+.bleed .bbody > .pic{position:relative; min-width:0; display:flex; padding-right:16mm}
 /* stretched rather than sized: a percentage height against an auto grid row
    left the picture floating in the middle of its own column */
 .bleed .bbody > .pic .img{flex:1; width:100%; border:0}
@@ -3601,8 +3601,8 @@ function pageStrip(d){
    + foot(d, 'Detail', 2) + '</section>';
 }
 
-/* 3. Big picture — one photograph across the top edge to edge, the
-      explanation under it, and a second picture running off the side. */
+/* 3. Big picture — one large photograph near the top, the explanation
+      under it, and a second picture held inside the non-hero trim. */
 function pageBleed(d){
   return '<section class="page bleed">'
    + '<div class="btop">' + slotImg('', esc(d.name) + ' — full width') + '</div>'
