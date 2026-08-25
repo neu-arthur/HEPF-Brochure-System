@@ -4162,6 +4162,20 @@ function applyLogo(html, logo){
   return box.innerHTML;
 }
 
+/* ── The controls that sit on top of a page ───────────────────────────────
+   Chrome the person clicks: the sticker toggles, the sticker itself, the
+   logo and its button. Named once because two places have to agree about
+   them and drifted apart when they did not.
+
+   The canvas pans by taking pointer capture on the first pointerdown. A
+   captured pointer retargets its own up event to the capture element, and
+   the browser then fires the click at the nearest common ancestor of down
+   and up — the canvas, never the button. So a control the pan handler does
+   not know to leave alone receives pointerdown, mousedown, and no click at
+   all: it looks dead however many times you press it. The frame toolbar
+   already learned this once; these are the rest.                          */
+var CHROME_CONTROLS = '.ecotog,.ecoalltog,.ecomark,.ecoallmark,.logotog,.logowrap';
+
 var FRAME_NAMES = {
   product : ['Cover','The Idea','The Range','Specification','The System','Working with HEPF'],
   industry: ['Cover','The Brief','Solutions','Applicable Lines','Proof','Working with HEPF']
@@ -5097,6 +5111,11 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
        native popup, so the variant dropdown opened and vanished in the same
        frame — and the canvas started panning behind it. */
     if(e.target.closest('.fbar')||e.target.closest('.fins')||e.target.closest('.addframe')) return;
+    /* Same reason, for the controls that live on the page rather than in the
+       toolbar — and for anything else that is a control at all, so the next
+       one added does not have to be remembered here. */
+    if(e.target.closest(CHROME_CONTROLS)) return;
+    if(e.target.closest('button,select,input,textarea,a[href],[role="button"]')) return;
     if(e.target.closest('.img')) return;   /* let the slot handle its own click */
     if(e.target.closest('.page') && !e.altKey && !e.shiftKey && document.body.classList.contains('cmt-placing')) return;
     if(e.target.closest('[contenteditable="true"]')) return;
@@ -6647,7 +6666,7 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
       var surface = document.getElementById('surface');
       if(!surface) return;
       var target = e.target && e.target.nodeType === 1 ? e.target : (e.target && e.target.parentElement);
-      var btn = target && target.closest ? target.closest('.ecotog,.ecomark,.ecoalltog,.ecoallmark,.logotog,.logowrap') : null;
+      var btn = target && target.closest ? target.closest(CHROME_CONTROLS) : null;
       if(!btn || !surface.contains(btn)) return;
       var id = blockIdFor(btn);
       if(!id || !S()) return;
