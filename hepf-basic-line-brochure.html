@@ -4859,8 +4859,10 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
        is written to the block and the page is redrawn. */
     eco: function(id, n){
       keepWords();
+      var changed = false;
       var list = blocksOf(doc).map(function(b){
         if(b.id !== id) return b;
+        changed = true;
         var e = {};
         for(var k in (b.eco || {})) e[k] = b.eco[k];
         if(e[n]) delete e[n]; else e[n] = 1;
@@ -4868,16 +4870,20 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
         if(Object.keys(e).length) out.eco = e;
         return out;
       });
+      if(!changed) return false;
       note('Eco mark changed'); setBlocks(doc, list); sync(); return true;
     },
     ecoAll: function(id){
       keepWords();
+      var changed = false;
       var list = blocksOf(doc).map(function(b){
         if(b.id !== id) return b;
+        changed = true;
         var out = { id:b.id, type:b.type, src:b.src, eco:b.eco, crop:b.crop, logo:b.logo };
         if(!b.ecoAll) out.ecoAll = 1;
         return out;
       });
+      if(!changed) return false;
       note('All eco mark changed'); setBlocks(doc, list); sync(); return true;
     },
     /* Where a picture sits inside its mask. Written to the block and the page
@@ -4902,12 +4908,15 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
     },
     logo: function(id){
       keepWords();
+      var changed = false;
       var list = blocksOf(doc).map(function(b){
         if(b.id !== id) return b;
+        changed = true;
         var out = { id:b.id, type:b.type, src:b.src, eco:b.eco, ecoAll:b.ecoAll, crop:b.crop };
         if(b.logo !== 'invert') out.logo = 'invert';
         return out;
       });
+      if(!changed) return false;
       note('Logo colour changed'); setBlocks(doc, list); sync(); return true;
     },
     swap: function(id, type){
@@ -6624,6 +6633,13 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
   function S(){ return window.__wsStruct; }
   var chromeControlClicksBound = false;
 
+  function blockIdFor(control){
+    var page = control && control.closest ? control.closest('.page[data-block]') : null;
+    if(page && page.getAttribute('data-block')) return page.getAttribute('data-block');
+    var frame = control && control.closest ? control.closest('.frame[data-block]') : null;
+    return frame && frame.getAttribute('data-block');
+  }
+
   function bindChromeControlClicks(){
     if(chromeControlClicksBound) return;
     var surface = document.getElementById('surface');
@@ -6633,9 +6649,9 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
       var target = e.target && e.target.nodeType === 1 ? e.target : (e.target && e.target.parentElement);
       var btn = target && target.closest ? target.closest('.ecotog,.ecoalltog,.logotog') : null;
       if(!btn || !surface.contains(btn)) return;
-      var frame = btn.closest ? btn.closest('.frame') : null;
-      var id = frame && frame.getAttribute('data-block');
+      var id = blockIdFor(btn);
       if(!id || !S()) return;
+      e.__hepfChromeHandled = true;
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
@@ -6720,12 +6736,14 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
          is chrome: wired here so it never enters the export or the diff. */
       [].slice.call(f.querySelectorAll('.ecotog')).forEach(function(t){
         t.addEventListener('click', function(e){
+          if(e.__hepfChromeHandled) return;
           e.stopPropagation(); e.preventDefault();
           S().eco(id, t.getAttribute('data-eco'));
         });
       });
       [].slice.call(f.querySelectorAll('.ecoalltog')).forEach(function(t){
         t.addEventListener('click', function(e){
+          if(e.__hepfChromeHandled) return;
           e.stopPropagation(); e.preventDefault();
           S().ecoAll(id);
         });
@@ -6793,6 +6811,7 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
       btn.title = 'Invert logo colour';
       btn.setAttribute('aria-label', 'Invert logo colour');
       btn.addEventListener('click', function(e){
+        if(e.__hepfChromeHandled) return;
         e.stopPropagation(); e.preventDefault();
         S().logo(id);
       });
