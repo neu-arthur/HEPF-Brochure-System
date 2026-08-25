@@ -6622,6 +6622,28 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
 
   function esc(s){ var d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
   function S(){ return window.__wsStruct; }
+  var chromeControlClicksBound = false;
+
+  function bindChromeControlClicks(){
+    if(chromeControlClicksBound) return;
+    var surface = document.getElementById('surface');
+    if(!surface) return;
+    chromeControlClicksBound = true;
+    surface.addEventListener('click', function(e){
+      var target = e.target && e.target.nodeType === 1 ? e.target : (e.target && e.target.parentElement);
+      var btn = target && target.closest ? target.closest('.ecotog,.ecoalltog,.logotog') : null;
+      if(!btn || !surface.contains(btn)) return;
+      var frame = btn.closest ? btn.closest('.frame') : null;
+      var id = frame && frame.getAttribute('data-block');
+      if(!id || !S()) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      if(btn.classList.contains('ecotog')) S().eco(id, btn.getAttribute('data-eco'));
+      else if(btn.classList.contains('ecoalltog')) S().ecoAll(id);
+      else if(btn.classList.contains('logotog')) S().logo(id);
+    }, true);
+  }
 
   /* A page rendered small. The real markup at a smaller scale, never a
      picture of it, so a change to a layout shows everywhere at once. */
@@ -6639,6 +6661,7 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
   /* ---------------- composer chrome ---------------- */
   function decorate(){
     if(!S() || document.body.classList.contains('tb')) return;
+    bindChromeControlClicks();
     var surface = document.getElementById('surface');
     var frames = [].slice.call(surface.querySelectorAll('.frame:not(.ghostframe)'));
     /* A document nobody has started has no frames to hang chrome on, which
