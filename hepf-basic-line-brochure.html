@@ -1570,7 +1570,7 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
       if(el instanceof SVGElement) return false;
       if(el.classList.contains('img')) return false;
       if(el.closest('.img')) return false;
-      if(el.closest && (el.closest('.ecotog') || el.closest('.ecoalltog') || el.closest('.ecomark'))) return false;
+      if(el.closest && (el.closest('.ecotog') || el.closest('.ecoalltog') || el.closest('.ecomark') || el.closest('.ecoallmark'))) return false;
       /* The printed page number is derived from where the page sits, so it is
          not authored text: not editable, not diffable, not addressable. It
          used to be a leaf, which meant a saved edit carried an old number and
@@ -5257,7 +5257,7 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
       if(el instanceof SVGElement) return false;
       if(el.classList && el.classList.contains('img')) return false;
       if(el.closest && el.closest('.img')) return false;
-      if(el.closest && (el.closest('.ecotog') || el.closest('.ecoalltog') || el.closest('.ecomark'))) return false;
+      if(el.closest && (el.closest('.ecotog') || el.closest('.ecoalltog') || el.closest('.ecomark') || el.closest('.ecoallmark'))) return false;
       if(el.classList.contains('pg')) return false;
       /* Named authored fields must keep being captured after Safari mutates
          their internal contenteditable markup during typing. */
@@ -7292,7 +7292,7 @@ FRAME_NAMES.niche = FRAME_NAMES.industry;
       if(el instanceof SVGElement) return false;
       if(el.classList && el.classList.contains('img')) return false;
       if(el.closest && el.closest('.img')) return false;
-      if(el.closest && (el.closest('.ecotog') || el.closest('.ecoalltog') || el.closest('.ecomark'))) return false;
+      if(el.closest && (el.closest('.ecotog') || el.closest('.ecoalltog') || el.closest('.ecomark') || el.closest('.ecoallmark'))) return false;
       if(el.classList.contains('pg')) return false;
       /* A named authored field must be captured even after contenteditable
          turns the inside into spans/divs. Otherwise a later image reframe
