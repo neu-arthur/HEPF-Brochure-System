@@ -706,9 +706,15 @@ thead th,
 .sband > .txt{padding:11mm 12mm 11mm 0; display:flex; flex-direction:column; justify-content:center}
 .sband.rev > .txt{padding:11mm 0 11mm 12mm}
 .sband > .pic{position:relative; min-width:0}
-.sband > .pic .img{width:100%; height:100%; border:0}
-.sband:first-child > .pic .img{height:calc(100% - 16mm); margin-top:16mm}
-.sband:first-child > .pic .img img{object-position:center 62%}
+/* The band's own picture, and only that one. These used to be written as
+   descendants, which also caught the detail shot nested inside .inset — and
+   at four selectors they outranked everything .inset had to say about it. The
+   detail box was therefore given the main picture's 16mm top inset, leaving
+   it a third of its own height and sitting on the bottom edge, so an uploaded
+   picture appeared cut off inside a box mostly full of nothing. */
+.sband > .pic > .img{width:100%; height:100%; border:0}
+.sband:first-child > .pic > .img{height:calc(100% - 16mm); margin-top:16mm}
+.sband:first-child > .pic > .img > img{object-position:center 62%}
 .sband.rev{direction:rtl}
 .sband.rev > *{direction:ltr}
 .sband .txt h3{font-size:15pt; letter-spacing:-.018em}
@@ -725,8 +731,19 @@ thead th,
 }
 /* the band that carries the inset gives its copy room to clear it */
 .sband.hasinset .txt p{max-width:64mm}
-.inset .img{width:100%; height:100%; border:0; background:#fff}
-.inset .img img{object-fit:cover; background:#fff}
+/* The detail shot fills its box edge to edge, whatever it was given and
+   whatever the band around it is doing. The white ground is on the slot, the
+   picture and the empty state alike, so a PNG with a transparent channel
+   reads as a photograph on paper rather than showing whatever happens to be
+   behind the box. */
+.inset > .img{
+  width:100%; height:100%; margin:0; padding:0; border:0; background:#fff;
+}
+.inset > .img > img{
+  width:100%; height:100%; object-fit:cover; object-position:center center;
+  background:#fff;
+}
+.inset > .img.noimg{background:#fff}
 
 /* ---------- 3. Big picture ---------- */
 .page.bleed{background:#fff}
