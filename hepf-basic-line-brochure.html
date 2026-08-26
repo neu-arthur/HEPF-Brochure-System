@@ -679,24 +679,32 @@ thead th,
 
 /* ---------- 1. Section opener ---------- */
 .page.opener{background:#fff}
+/* Set on paper like every other page in the document. It was the one dark
+   panel that was not a cover or a closing page, which made a section opener
+   read as an ending. The margin is the page margin — nothing here bleeds. */
 .opener .ohero{
-  background:var(--hero); color:var(--onhero); padding:18mm 16mm 14mm;
+  padding:18mm 16mm 14mm;
   display:flex; flex-direction:column; flex:none;
 }
 /* the call and response. One face, one weight; the question steps back in
    colour rather than in weight, the way the cover sub-line already does */
 .askline{font-size:26pt; line-height:1.14; font-weight:700; letter-spacing:-.022em}
-.askline .q{display:block; color:color-mix(in srgb, var(--onhero) 55%, transparent)}
-.askline .a{display:block; color:var(--onhero)}
+.askline .q{display:block; color:var(--muted)}
+.askline .a{display:block; color:var(--ink)}
 .opener .obody{display:grid; grid-template-columns:1fr 62mm; gap:12mm; margin-top:12mm}
-.opener .obody h3{font-size:14pt; color:var(--onhero); letter-spacing:-.015em}
+.opener .obody h3{font-size:14pt; color:var(--ink); letter-spacing:-.015em}
 .opener .obody > div > p{
   font-size:9pt; line-height:1.6; margin-top:3mm;
-  color:color-mix(in srgb, var(--onhero) 72%, transparent);
+  color:var(--muted);
 }
-.opener .ostrip{flex:1; display:grid; grid-template-columns:1fr 1fr; gap:0; min-height:0}
-.opener .ostrip .img{height:100%; border:0; border-right:var(--hair) solid var(--line)}
-.opener .ostrip > div:last-child .img{border-right:0}
+/* Held inside the page margin rather than run to the paper edge, and divided
+   by the same hairline-through-the-gap the gallery uses, so the two shots
+   read as one contained block instead of a bleed. */
+.opener .ostrip{
+  flex:1; display:grid; grid-template-columns:1fr 1fr; gap:var(--hair);
+  background:var(--line); margin:0 16mm; min-height:0;
+}
+.opener .ostrip .img{height:100%; border:0}
 
 /* ---------- 2. Feature strip ---------- */
 .page.strip{background:#fff}
@@ -3732,7 +3740,7 @@ function noteTile(dark, k, h, p){
 function pageOpener(d){
   return '<section class="page opener">'
    + '<div class="ohero">'
-   +   '<span class="eyebrow" style="color:var(--heroaccent)" data-f="eyebrow">' + esc(d.name) + '</span>'
+   +   '<span class="eyebrow" data-f="eyebrow">' + esc(d.name) + '</span>'
    +   '<div class="askline" style="margin-top:7mm">'
    +     '<span class="q" data-f="ask">You want the building to be ready.</span>'
    +     '<span class="a" data-f="answer">We hand it over finished.</span>'
@@ -3745,9 +3753,9 @@ function pageOpener(d){
    +       bullets(['Long-term or temporary, the same building',
                     'Fire rating as standard, not as an option',
                     'Insulated to Swiss and EU requirements',
-                    'Finishes chosen from the standard range'], true, 'point')
+                    'Finishes chosen from the standard range'], false, 'point')
    +     '</div>'
-   +     noteTile(true, 'Worth knowing', 'Type-tested structure',
+   +     noteTile(false, 'Worth knowing', 'Type-tested structure',
                   'The frame is certified as a type, so the engineering is settled before your drawings start.')
    +   '</div>'
    + '</div>'
@@ -3825,9 +3833,11 @@ function pageLayouts(d){
   };
   return '<section class="page"><div class="pad">'
    + '<span class="eyebrow" data-f="eyebrow">Configurations</span>'
-   + '<div class="askline" style="margin-top:5mm; font-size:23pt; color:var(--ink)">'
-   +   '<span class="q" style="color:var(--muted)" data-f="ask">You need the space to work.</span>'
-   +   '<span class="a" style="color:var(--ink)" data-f="answer">We draw it around you.</span>'
+   /* the same call and response the opener uses; the colours are the
+      stylesheet's now that neither page is a dark panel */
+   + '<div class="askline" style="margin-top:5mm; font-size:23pt">'
+   +   '<span class="q" data-f="ask">You need the space to work.</span>'
+   +   '<span class="a" data-f="answer">We draw it around you.</span>'
    + '</div>'
    + '<div class="lay">'
    +   '<div>'
