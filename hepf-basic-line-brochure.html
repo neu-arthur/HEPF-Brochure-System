@@ -797,7 +797,13 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
 @media print{
   body{background:#fff}
   .page{margin:0; box-shadow:none; page-break-after:always; break-after:page}
-  .page:last-child{page-break-after:auto}
+  /* The last sheet must not force a break after itself or the PDF ends on a
+     blank page. :last-child only ever described the exported file, where the
+     pages are siblings; in the composer each page sits in a frame with the
+     toolbar after it, so nothing matched and the break was always forced.
+     The class is put on the last page that is actually going to print. */
+  .page:last-child,
+  .page.is-last-page{page-break-after:auto; break-after:auto}
   *{-webkit-print-color-adjust:exact; print-color-adjust:exact}
 }
 </style>
@@ -1938,9 +1944,40 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
   /* ---------- output ---------- */
   var emailPdf = document.getElementById('st-emailpdf');
   var printBtn = document.getElementById('st-print');
+  /* The label is the only progress the person gets, and a print that waits
+     silently reads as a print that did nothing. */
+  function withPrintButton(label, work){
+    var was = printBtn.textContent;
+    printBtn.disabled = true;
+    printBtn.textContent = label;
+    function restore(){ printBtn.disabled = false; printBtn.textContent = was; }
+    return work().then(function(v){ restore(); return v; },
+                       function(e){ restore(); throw e; });
+  }
+  /* Said on the button itself, and left there long enough to read. A sheet
+     that printed without its photograph is worth knowing about before the PDF
+     is sent to anyone. */
+  var warnTimer = null;
+  function warnOnButton(text){
+    clearTimeout(warnTimer);
+    var was = 'Print / Save as PDF';
+    printBtn.textContent = text;
+    warnTimer = setTimeout(function(){ printBtn.textContent = was; }, 6000);
+  }
   printBtn.addEventListener('click', function(){
-    if(emailPdf && emailPdf.checked) printEmailPdf();
-    else window.print();
+    if(emailPdf && emailPdf.checked){ printEmailPdf(); return; }
+    clearTimeout(warnTimer);
+    withPrintButton('Loading pictures\u2026', function(){
+      return printWhenReady(document).then(function(report){
+        window.print();
+        return report;
+      });
+    }).then(function(report){
+      if(report && report.missing.length){
+        warnOnButton(report.missing.length + ' picture'
+          + (report.missing.length === 1 ? '' : 's') + ' could not load');
+      }
+    }, function(){ window.print(); });
   });
   document.getElementById('st-reset').addEventListener('click', function(){
     setAll(DEFAULTS);
@@ -2005,6 +2042,85 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
       im.src = src;
     });
   }
+  /* ── Nothing is printed until the pictures are actually there ────────────
+     A page whose picture has not arrived prints as an empty sheet. On most
+     layouts that is a hole; on the full-bleed cover it is the whole page,
+     because that page is nothing but its photograph — so the sheet comes out
+     of the PDF blank and the client reasonably reports that the page "did not
+     come through".
+
+     Printing used to hand the document straight to the browser, which prints
+     what is laid out at that instant and does not wait for anything still in
+     flight. A picture that was slow, throttled or briefly unavailable was
+     simply absent from the PDF. This waits for every picture on every page,
+     gives one that failed a single second chance, and only then prints.     */
+  function picturesIn(root){
+    return [].slice.call((root || document).querySelectorAll('.page img[src]'));
+  }
+  function settledPicture(img, ms){
+    if(img.complete && img.naturalWidth > 0) return Promise.resolve(true);
+    if(img.complete && !img.naturalWidth) return Promise.resolve(false);
+    return new Promise(function(done){
+      var settled = false;
+      function finish(ok){
+        if(settled) return;
+        settled = true;
+        clearTimeout(timer);
+        done(ok);
+      }
+      var timer = setTimeout(function(){
+        finish(!!(img.complete && img.naturalWidth > 0));
+      }, ms);
+      img.addEventListener('load',  function(){ finish(true); },  { once:true });
+      img.addEventListener('error', function(){ finish(false); }, { once:true });
+    });
+  }
+  /* Loaded is not the same as paintable: the browser still has to decode the
+     bitmap, and an undecoded picture can miss the print raster. Asking for the
+     decode here means the work is done before the print, not during it. */
+  function decodedPicture(img){
+    if(!img.decode) return Promise.resolve();
+    return img.decode().catch(function(){});
+  }
+  function whenPicturesReady(root, waitMs){
+    var ms = waitMs || 15000;
+    var imgs = picturesIn(root);
+    return Promise.all(imgs.map(function(img){
+      return settledPicture(img, ms).then(function(ok){
+        if(ok) return decodedPicture(img).then(function(){ return true; });
+        /* One retry. A picture host that throttled or blinked usually answers
+           the second time, and re-assigning the same address re-requests it. */
+        var src = img.getAttribute('src');
+        if(!src || src.indexOf('data:') === 0) return false;
+        img.src = src;
+        return settledPicture(img, Math.min(ms, 8000)).then(function(second){
+          if(!second) return false;
+          return decodedPicture(img).then(function(){ return true; });
+        });
+      });
+    })).then(function(results){
+      var missing = [];
+      results.forEach(function(ok, i){
+        if(ok) return;
+        var slot = imgs[i].closest ? imgs[i].closest('.img') : null;
+        /* A slot that could not load shows its placeholder rather than
+           nothing, so the sheet says what is missing instead of being blank. */
+        if(slot) slot.classList.add('noimg');
+        var pg = imgs[i].closest ? imgs[i].closest('.page') : null;
+        missing.push((pg && pg.getAttribute('data-block')) || 'page');
+      });
+      return { total: imgs.length, missing: missing };
+    });
+  }
+  /* The browser prints whatever is laid out when print() is called, so every
+     route to a PDF goes through here first. */
+  function printWhenReady(root, before){
+    return whenPicturesReady(root).then(function(report){
+      if(before) before(report);
+      return report;
+    });
+  }
+
   function printDataSize(src){
     src = String(src || '');
     if(src.indexOf('data:') !== 0) return 0;
@@ -2120,8 +2236,12 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
     fr.style.position = 'fixed';
     fr.style.right = '100vw';
     fr.style.bottom = '100vh';
-    fr.style.width = '1px';
-    fr.style.height = '1px';
+    /* Laid out at paper size rather than 1x1. A document measured in a one
+       pixel viewport is a document the engine has every excuse to rasterise
+       badly. */
+    fr.style.width = '210mm';
+    fr.style.height = '297mm';
+    fr.style.border = '0';
     document.body.appendChild(fr);
     var done = false;
     function cleanup(){
@@ -2130,7 +2250,18 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
       setTimeout(function(){ fr.remove(); }, 1000);
     }
     fr.onload = function(){
-      setTimeout(function(){
+      /* A quarter of a second used to be the whole guarantee that the copy
+         inside this frame had drawn. It is a fresh document: every picture in
+         it is fetched and decoded again, and the big ones were routinely not
+         there yet, so the sheet printed without them. Wait for them properly
+         instead, and keep a ceiling so a picture that never arrives cannot
+         strand the print. */
+      var doc = null;
+      try { doc = fr.contentDocument; } catch(e){}
+      var ready = doc
+        ? whenPicturesReady(doc, 20000)
+        : new Promise(function(r){ setTimeout(r, 250); });
+      ready.then(function(){
         try {
           fr.contentWindow.focus();
           fr.contentWindow.print();
@@ -2140,7 +2271,7 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
           window.print();
         }
         setTimeout(cleanup, 120000);
-      }, 250);
+      });
     };
     fr.srcdoc = '<!DOCTYPE html>\n' + clone.outerHTML;
   }
@@ -2148,8 +2279,14 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
     var old = printBtn.textContent;
     printBtn.disabled = true;
     printBtn.textContent = 'Preparing email PDF…';
-    var c = printClone();
-    compressPrintImages(c).then(function(){
+    /* The compressor reads each picture off the page it is on. One that has
+       not loaded yet compresses to nothing, so the wait has to come first
+       here too. */
+    var c = null;
+    whenPicturesReady(document).then(function(){
+      c = printClone();
+      return compressPrintImages(c);
+    }).then(function(){
       if(printImagePayloadSize(c) > 14 * 1024 * 1024) return compressPrintImages(c, true);
     }).then(function(){
       printBtn.disabled = false;
@@ -2158,9 +2295,35 @@ table.tick td.lead span{display:block; font-size:7.6pt; color:var(--muted); line
     }).catch(function(){
       printBtn.disabled = false;
       printBtn.textContent = old;
-      printHtmlClone(c);
+      /* If the wait itself failed the clone was never built; an email PDF
+         with uncompressed pictures still beats no PDF at all. */
+      printHtmlClone(c || printClone());
     });
   }
+
+  /* ── The last sheet ───────────────────────────────────────────────────────
+     Marking it is a layout decision that depends on what is on screen, so it
+     is made at print time and undone afterwards. beforeprint fires for the
+     button, for Cmd+P and for the browser's own menu, which is the point:
+     every route to a PDF gets the same treatment. */
+  function markLastPage(){
+    var pages = [].slice.call(document.querySelectorAll('.page'));
+    var last = null;
+    pages.forEach(function(pg){
+      pg.classList.remove('is-last-page');
+      /* A page inside a hidden frame, the toolbox or the library belongs to
+         another document and is not going to print. */
+      if(!pg.getClientRects().length) return;
+      last = pg;
+    });
+    if(last) last.classList.add('is-last-page');
+  }
+  function unmarkLastPage(){
+    [].slice.call(document.querySelectorAll('.page.is-last-page'))
+      .forEach(function(pg){ pg.classList.remove('is-last-page'); });
+  }
+  window.addEventListener('beforeprint', markLastPage);
+  window.addEventListener('afterprint', unmarkLastPage);
 
   /* Clean export — strips the studio entirely. This is the client version. */
   document.getElementById('st-export').addEventListener('click', function(){
